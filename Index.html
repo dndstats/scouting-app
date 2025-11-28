@@ -285,7 +285,6 @@ html,body { margin:0; padding:0; background:var(--bg); color:var(--text); font:1
 .diff-chip.neutral {
   background:rgba(255,255,255,0.08);
   color:#cbd6ee;
-}
   font-size:13px;
 }
 .opp-profile-table th,
@@ -1042,6 +1041,192 @@ body.mobile-nav-open #mobileNavOverlay { display:block; }
 
       /* Player sidebar */
       .avatar { width:160px; height:160px; border-radius:12px; object-fit:cover; display:none; box-shadow:0 2px 10px rgba(0,0,0,.35); border:1px solid var(--border); }
+      /* Player Library Grid */
+      #panel-players {
+        padding: 0 !important;
+        margin: 0 !important;
+        display: none;
+        flex-direction: column;
+        width: 100%;
+        height: calc(100vh);
+        min-height: calc(100vh);
+        max-width: none !important;
+        border-radius: 0 !important;
+        border: none !important;
+        overflow: hidden;
+        background: var(--panel) !important;
+        position: relative;
+      }
+      #panel-players.active {
+        display: flex !important;
+      }
+      .player-library-grid {
+        display: grid !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 20px;
+        padding: 20px 20px 20px calc(var(--sidebar-w) + var(--sidebar-gap) + 20px);
+        overflow-y: auto;
+        overflow-x: visible;
+        flex: 1;
+        min-height: 0;
+        width: 100% !important;
+        box-sizing: border-box;
+        background: transparent;
+      }
+      body.sidebar-collapsed .player-library-grid {
+        padding-left: calc(var(--sidebar-w-collapsed) + var(--sidebar-gap) + 20px);
+      }
+      #panel-players.active .player-library-grid {
+        display: grid !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+      }
+      .player-card {
+        background: var(--card);
+        border: 2px solid var(--border);
+        border-radius: 16px;
+        padding: 16px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        position: relative;
+      }
+      .player-card:hover {
+        border-color: rgba(74, 168, 255, 0.6);
+        box-shadow: 0 4px 16px rgba(74, 168, 255, 0.2);
+        transform: translateY(-2px);
+      }
+      .player-card-ranking {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: rgba(74, 168, 255, 0.9);
+        color: white;
+        font-weight: 700;
+        font-size: 14px;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        z-index: 2;
+      }
+      .player-card-ranking.top-3 {
+        background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+      }
+      .player-card-ranking.bottom-3 {
+        background: rgba(255, 90, 95, 0.9);
+        color: white;
+      }
+      .player-card-photo {
+        width: 140px;
+        height: 140px;
+        border-radius: 12px;
+        object-fit: cover;
+        border: 3px solid var(--border);
+        background: var(--bg-secondary);
+        transition: all 0.3s ease;
+      }
+      .player-card-no-photo {
+        width: 140px;
+        height: 140px;
+        border-radius: 12px;
+        background: var(--bg-secondary);
+        border: 3px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--muted);
+        font-size: 48px;
+      }
+      .player-card-name {
+        font-weight: 600;
+        font-size: 16px;
+        color: var(--text);
+        margin: 0;
+        word-break: break-word;
+        line-height: 1.3;
+      }
+      .player-card-game-stats {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 6px;
+        text-align: center;
+        line-height: 1.6;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .player-card-game-stats-item {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+      }
+      .player-card-game-stats-label {
+        color: var(--muted);
+        font-weight: 500;
+      }
+      .player-card-game-stats-value {
+        font-weight: 600;
+        color: var(--text);
+      }
+      .player-card-traits {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 4px;
+        text-align: center;
+        line-height: 1.5;
+      }
+      .player-card-traits-item {
+        display: inline-block;
+        margin: 0 4px;
+      }
+      .player-card-traits-label {
+        color: var(--muted);
+        font-weight: 500;
+      }
+      .player-card-traits-value {
+        font-weight: 600;
+        color: var(--text);
+      }
+      .player-card-traits-strongest {
+        color: #10b981;
+      }
+      .player-card-traits-weakest {
+        color: #ef4444;
+      }
+      @media (max-width: 768px) {
+        .player-library-grid {
+          grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+          gap: 16px;
+          padding: 16px;
+        }
+        .player-card-photo {
+          width: 120px;
+          height: 120px;
+        }
+        .player-card-no-photo {
+          width: 120px;
+          height: 120px;
+          font-size: 40px;
+        }
+      }
+      .player-detail-modal {
+        animation: fadeIn 0.2s ease;
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
       .select { width:100%; padding:10px; border-radius:10px; background:#0f131a; color:var(--text); border:1px solid var(--border); }
       .kv { display:grid; grid-template-columns: 120px 1fr; gap:8px 12px; margin-top:10px; }
       .kv div:nth-child(odd){ color:#b8c4dd; }
@@ -1162,7 +1347,8 @@ body.mobile-nav-open #mobileNavOverlay { display:block; }
       .empty { color:#9aa6bf; background:#10141c; border:1px dashed var(--border); border-radius:10px; padding:16px; }
 
       /* Ratings table */
-      table { width:100%; border-collapse: collapse; }
+      table { width:100%; border-collapse: collapse; max-width: 100%; }
+      #ratingsTable { width: 100%; max-width: 100%; table-layout: auto; }
       th, td { padding:8px; border-bottom:1px solid var(--border); text-align:left; }
       th { position:sticky; top:0; background:var(--panel); z-index:1; }
       .num { text-align:center; font-variant-numeric: tabular-nums; }
@@ -1172,6 +1358,8 @@ body.mobile-nav-open #mobileNavOverlay { display:block; }
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: 12px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
       .hero { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height: 50vh; gap: 16px; }
@@ -1400,7 +1588,8 @@ body.mobile-nav-open #mobileNavOverlay { display:block; }
   .avatar { width: 120px; height: 120px; }
 
   /* Ratings tables: allow horizontal scroll */
-  .ratingsWrap { overflow: auto; }
+  .ratingsWrap { overflow: auto; width: 100%; }
+  #ratingsTable { width: 100%; min-width: 100%; }
   table { min-width: 680px; } /* keep columns usable; scroll on small */
 
   /* Filters: stack vertically */
@@ -1427,6 +1616,49 @@ body.mobile-nav-open #mobileNavOverlay { display:block; }
 
   /* Login overlay box: fill nicely on phones */
   #loginOverlay > div { max-width: 360px; width: 92%; }
+  /* Ensure login overlay is properly hidden */
+  #loginOverlay.hidden { display: none !important; visibility: hidden !important; pointer-events: none !important; }
+  /* Ensure buttons are always clickable */
+  button, .btn { cursor: pointer !important; pointer-events: auto !important; }
+  button:disabled, .btn:disabled { cursor: not-allowed !important; opacity: 0.5; }
+  /* Ensure sidebar items are clickable */
+  #sideNav .sideItem { cursor: pointer !important; pointer-events: auto !important; user-select: none; }
+  #mobileTabbar button { cursor: pointer !important; pointer-events: auto !important; }
+}
+
+/* Global fixes for button responsiveness */
+button, .btn, .btn-danger {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  position: relative; /* Ensure buttons are in stacking context */
+  z-index: 1; /* Ensure buttons are above background elements */
+}
+
+button:disabled, .btn:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.5;
+  pointer-events: none !important;
+}
+
+/* Ensure sidebar navigation is always clickable */
+#sideNav .sideItem {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 1;
+}
+
+#sideNav .sideSectionHeader {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
+
+/* Ensure mobile tabbar buttons work */
+#mobileTabbar button {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 1;
 }
 
 /* Bigger tap targets (nice on touch) */
@@ -2352,11 +2584,19 @@ button.clear:hover,
 
 
 /* --- Daily Ratings header layout --- */
+#panel-dailyratings {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 18px;
+}
+
 .ratings-header {
   display:flex;
   align-items:center;
   gap:12px;
   margin-bottom:8px;
+  width: 100%;
 }
 
 .ratings-header h1 {
@@ -2371,6 +2611,7 @@ button.clear:hover,
   display:flex;
   justify-content:flex-start;
   margin-bottom:8px;
+  width: 100%;
 }
 
 .ratings-actions {
@@ -2608,7 +2849,7 @@ body.sidebar-enabled.sidebar-collapsed .tabs{
 
   <body class="sidebar-enabled desktop">
     <!-- Clip Modal -->
-    <div id="clipModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:30000; align-items:center; justify-content:center;">
+    <div id="clipModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:40000; align-items:center; justify-content:center;">
       <div id="clipModalCard" style="position:relative; width:90%; max-width:980px; background:#14181f; border:1px solid #2a3448; border-radius:12px; overflow:hidden;">
 
 
@@ -2855,6 +3096,79 @@ body.sidebar-enabled.sidebar-collapsed .tabs{
   </div>
 
   <div id="ratingsLegend" class="muted" style="margin-top:8px;"></div>
+
+  <!-- Player Rating Chart Section -->
+  <div class="sectionTitle" style="margin-top:24px; margin-bottom:12px;">Player Rating History</div>
+  <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:16px;">
+    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:16px;">
+      <!-- Comparison Mode -->
+      <label style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:13px; color:var(--muted); font-weight:600;">Compare:</span>
+        <select id="ratingChartMode" class="select" style="min-width:150px;">
+          <option value="player">Players</option>
+          <option value="position">Positions</option>
+        </select>
+      </label>
+      
+      <!-- Player Mode Controls -->
+      <div id="ratingChartPlayerMode" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <label style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:13px; color:var(--muted);">Player 1:</span>
+          <select id="ratingChartPlayer1" class="select" style="min-width:180px;">
+            <option value="">Select player...</option>
+          </select>
+        </label>
+        <label style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:13px; color:var(--muted);">Player 2 (optional):</span>
+          <select id="ratingChartPlayer2" class="select" style="min-width:180px;">
+            <option value="">None (no comparison)</option>
+          </select>
+        </label>
+      </div>
+      
+      <!-- Position Mode Controls -->
+      <div id="ratingChartPositionMode" style="display:none; gap:12px; align-items:center; flex-wrap:wrap;">
+        <label style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:13px; color:var(--muted);">Position 1:</span>
+          <select id="ratingChartPosition1" class="select" style="min-width:150px;">
+            <option value="">Select position...</option>
+            <option value="PG">PG (Point Guard)</option>
+            <option value="SG">SG (Shooting Guard)</option>
+            <option value="SF">SF (Small Forward)</option>
+            <option value="PF">PF (Power Forward)</option>
+            <option value="C">C (Center)</option>
+          </select>
+        </label>
+        <label style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:13px; color:var(--muted);">Position 2:</span>
+          <select id="ratingChartPosition2" class="select" style="min-width:150px;">
+            <option value="">Select position...</option>
+            <option value="PG">PG (Point Guard)</option>
+            <option value="SG">SG (Shooting Guard)</option>
+            <option value="SF">SF (Small Forward)</option>
+            <option value="PF">PF (Power Forward)</option>
+            <option value="C">C (Center)</option>
+          </select>
+        </label>
+      </div>
+      
+      <!-- Session Filter (applies to both modes) -->
+      <label style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:13px; color:var(--muted);">Filter:</span>
+        <select id="ratingChartFilter" class="select" style="min-width:150px;">
+          <option value="all">All sessions</option>
+          <option value="games">Games (GBL & EC)</option>
+          <option value="practices">Practices</option>
+        </select>
+      </label>
+      
+      <button id="ratingChartLoadBtn" class="btn btn-small" type="button">Load Chart</button>
+    </div>
+    <div id="ratingChartContainer" style="background:var(--bg-secondary); border:1px solid var(--border); border-radius:8px; padding:16px; min-height:360px; display:none; width:100%;">
+      <svg id="ratingChartSVG" width="100%" height="340" style="width:100%; height:auto; display:block;"></svg>
+    </div>
+    <div id="ratingChartNote" style="text-align:center; color:var(--muted); font-size:12px; margin-top:12px;"></div>
+  </div>
 </div>
 
 <div id="panel-gamestats" class="panel">
@@ -2920,6 +3234,14 @@ body.sidebar-enabled.sidebar-collapsed .tabs{
       <h3>Filters</h3>
       <div class="shotmap-group">
         <label>
+          <span>Team</span>
+          <select id="shot-team">
+            <option value="">All teams</option>
+            <option value="1" selected>Peristeri BC</option>
+            <option value="2">Opponent</option>
+          </select>
+        </label>
+        <label>
           <span>Game</span>
           <select id="shot-game">
             <option value="">All games</option>
@@ -2953,6 +3275,26 @@ body.sidebar-enabled.sidebar-collapsed .tabs{
             <option value="0">Miss</option>
           </select>
         </label>
+        <label>
+          <span>Clock Time</span>
+          <select id="shot-clock">
+            <option value="">All</option>
+            <option value="quick">Quick (22-18s)</option>
+            <option value="middle">Middle (18-10s)</option>
+            <option value="late">Late (under 5s)</option>
+          </select>
+        </label>
+        <label>
+          <span>Score Differential</span>
+          <select id="shot-scoreDiff">
+            <option value="">All situations</option>
+            <option value="trailing-5plus">Trailing by 5+</option>
+            <option value="trailing-close">Trailing by 3-4</option>
+            <option value="tied-close">Tied/Close (±3)</option>
+            <option value="leading-close">Leading by 3-4</option>
+            <option value="leading-5plus">Leading by 5+</option>
+          </select>
+        </label>
       </div>
 
       <h3>Render</h3>
@@ -2967,47 +3309,12 @@ body.sidebar-enabled.sidebar-collapsed .tabs{
         <label>
           <span>Color by</span>
           <select id="shot-colorBy">
-            <option value="fg">FG%</option>
-            <option value="xfg" selected>xFG% (smoothed)</option>
+            <option value="fg" selected>FG%</option>
+            <option value="xfg">xFG% (smoothed)</option>
             <option value="ep">EP (Expected Points)</option>
             <option value="density">Shot density</option>
           </select>
         </label>
-      </div>
-
-      <h3>Hex & Dot Settings</h3>
-      <div class="shotmap-group">
-        <label>
-          <span>Hex size</span>
-          <input id="shot-hexSize" type="range" min="12" max="60" step="1" value="28">
-        </label>
-        <label>
-          <span>Smoothing</span>
-          <div class="shotmap-inline">
-            <input id="shot-smoothK" type="range" min="0" max="30" step="1" value="8">
-            <span id="shot-kLabel">k=8</span>
-          </div>
-        </label>
-        <label>
-          <span>Brightness</span>
-          <input id="shot-hexBright" type="range" min="100" max="170" step="5" value="130">
-        </label>
-        <label>
-          <span>Dot size</span>
-          <input id="shot-markerSize" type="range" min="3" max="10" step="0.5" value="5">
-        </label>
-      </div>
-
-      <h3>Court</h3>
-      <div class="shotmap-group">
-        <label class="shotmap-inline">
-          <span>
-            <input id="shot-shadeToggle" type="checkbox" checked>
-            Shade court
-          </span>
-          <span id="shot-shadePct">35%</span>
-        </label>
-        <input id="shot-shadeOpacity" type="range" min="0" max="80" step="1" value="35">
       </div>
 
       <button id="shot-resetBtn" type="button" class="btn btn-small">Reset</button>
@@ -3054,10 +3361,6 @@ body.sidebar-enabled.sidebar-collapsed .tabs{
       <div class="card-section">
         <h4>Additional Stats</h4>
         <div class="shot-dist-bars" id="shot-addlStats"></div>
-      </div>
-      <div class="card-section">
-        <h4>Zone Leaders</h4>
-        <div id="shot-zoneLeaders" class="shot-dist-bars"></div>
       </div>
     </aside>
   </div>
@@ -3194,42 +3497,53 @@ body.sidebar-enabled.sidebar-collapsed .tabs{
 
 <!-- PLAYERS -->
 <div id="panel-players" class="panel">
-  <div class="grid g2">
-    <div class="card">
-      <label class="muted">Player</label>
-      <select id="playerSelect" class="select" onchange="onPlayerChange(this.value)"></select>
-      <div id="playerPhotoWrap" style="margin-top:10px;">
-        <img id="playerPhoto" class="avatar" alt="Player photo" />
+  <div id="playerLibraryGrid" class="player-library-grid">
+    <!-- Player cards will be inserted here -->
+  </div>
+  
+  <!-- Player Detail Modal -->
+  <div id="playerDetailModal" class="player-detail-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.85); z-index:10000; overflow-y:auto; padding:20px;">
+    <div style="max-width:1200px; margin:0 auto; background:var(--panel); border-radius:12px; padding:24px; border:1px solid var(--border);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h2 id="playerModalTitle" style="margin:0; font-size:24px;">Player Details</h2>
+        <button id="playerModalClose" type="button" style="background:transparent; border:1px solid var(--border); color:var(--text); padding:8px 16px; border-radius:6px; cursor:pointer; font-size:14px;" onclick="closePlayerDetailModal()">✕ Close</button>
       </div>
-      <div class="kv">
-        <div>Overall delta</div><div id="pOverall" class="mono">—</div>
+      
+      <div class="grid g2">
+        <div class="card">
+          <div id="playerModalPhotoWrap" style="margin-bottom:16px; text-align:center;">
+            <img id="playerModalPhoto" class="avatar" alt="Player photo" style="width:120px; height:120px; margin:0 auto;" />
+          </div>
+          <div class="kv">
+            <div>Overall delta</div><div id="pOverall" class="mono">—</div>
+          </div>
+          <div class="sectionTitle">3-Day Flags</div>
+          <div id="pFlags" class="mono muted">—</div>
+          <div class="sectionTitle">Ratings by Coach</div>
+          <div id="pCoachRatings" class="mono muted">—</div>
+        </div>
+
+        <div class="card">
+          <h2>Strengths</h2>
+          <ul id="pStrengths"></ul>
+          <h2>Areas to Improve</h2>
+          <ul id="pWeaknesses"></ul>
+          <h2>Suggested Focus</h2>
+          <ul id="pFocus"></ul>
+
+          <div class="sectionTitle">Shot Chart</div>
+          <div id="pShotChartWrap" class="player-shot-wrap">
+            <canvas id="pShotCanvas" width="320" height="300"></canvas>
+            <div id="pShotSummary" class="muted" style="font-size:12px;">No shot data.</div>
+          </div>
+
+          <div class="sectionTitle">Clips (newest)</div>
+          <div id="pClips"></div>
+        </div>
       </div>
-      <div class="sectionTitle">3-Day Flags</div>
-      <div id="pFlags" class="mono muted">—</div>
-      <div class="sectionTitle">Ratings by Coach</div>
-      <div id="pCoachRatings" class="mono muted">—</div>
-    </div>
-
-    <div class="card">
-      <h2>Strengths</h2>
-      <ul id="pStrengths"></ul>
-      <h2>Areas to Improve</h2>
-      <ul id="pWeaknesses"></ul>
-      <h2>Suggested Focus</h2>
-      <ul id="pFocus"></ul>
-
-      <div class="sectionTitle">Shot Chart</div>
-      <div id="pShotChartWrap" class="player-shot-wrap">
-        <canvas id="pShotCanvas" width="320" height="300"></canvas>
-        <div id="pShotSummary" class="muted" style="font-size:12px;">No shot data.</div>
-      </div>
-
-      <div class="sectionTitle">Clips (newest)</div>
-      <div id="pClips"></div>
     </div>
   </div>
 </div>
-
 
 <!-- stats -->
 <section id="panel-stats" class="panel">
@@ -3837,145 +4151,1061 @@ body.sidebar-enabled.sidebar-collapsed .tabs{
     return decodeURIComponent(escape(binary));
   }
 
-  try {
-    const base64 = `<?!= include('tmp_script_base64'); ?>`;
-    const raw = decodeBase64Utf8(base64);
-    new Function(raw)();
-  } catch (err) {
-    console.error('Failed to bootstrap client bundle', err);
+  function bootstrapScript() {
+    try {
+      const base64 = `<?!= include('tmp_script_base64'); ?>`;
+      if (!base64 || base64.trim() === '') {
+        console.error('Failed to bootstrap client bundle - base64 is empty');
+        return;
+      }
+      const raw = decodeBase64Utf8(base64);
+      if (!raw || raw.trim() === '') {
+        console.error('Failed to bootstrap client bundle - decoded script is empty');
+        return;
+      }
+      // Wrap in try-catch to handle any errors during execution
+      try {
+        new Function(raw)();
+        console.log('Client bundle bootstrapped successfully');
+        // Test if stats function is available - wait a bit for functions to be exposed
+        setTimeout(function() {
+          if (typeof window.loadStats === 'function') {
+            console.log('✓ loadStats function is available');
+          } else {
+            console.warn('✗ loadStats function NOT found');
+            console.warn('Available window functions:', Object.keys(window).filter(k => k.includes('load')).join(', '));
+          }
+          if (typeof window.tabLoaders === 'object' && window.tabLoaders && typeof window.tabLoaders.stats === 'function') {
+            console.log('✓ tabLoaders.stats function is available');
+          } else {
+            console.warn('✗ tabLoaders.stats function NOT found');
+            console.warn('window.tabLoaders type:', typeof window.tabLoaders);
+            if (window.tabLoaders) {
+              console.warn('tabLoaders keys:', Object.keys(window.tabLoaders));
+            }
+          }
+        }, 500); // Increased delay to 500ms
+      } catch (execErr) {
+        console.error('Error executing client bundle:', execErr);
+        console.error('This might be a syntax error or missing dependency');
+        console.error('Error details:', execErr.message, execErr.stack);
+        // Don't fail completely - the app might still work with some features
+      }
+    } catch (err) {
+      console.error('Failed to bootstrap client bundle', err);
+      console.error('Error details:', err.message, err.stack);
+    }
+  }
+  
+  // Wait for DOM to be ready before bootstrapping
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootstrapScript);
+  } else {
+    // DOM is already ready, but wait a bit to ensure all elements are parsed
+    setTimeout(bootstrapScript, 0);
   }
 })();
     </script>
 
     <script>
-// Zone Leaders (client-side, uses server shots API)
+// Fix button responsiveness issues
 (function(){
-  var debounceTimer = null;
-  function $(id){ return document.getElementById(id); }
-  function rightHalfCoords(shot, SRC){
-    var x = Number(shot.x||0), y = Number(shot.y||0);
-    if (x < SRC.w/2) x = SRC.w - x;
-    return [x,y];
-  }
-  function zoneOf(shot, SRC){
-    var HOOP_X = SRC.w, HOOP_Y = Math.round(SRC.h/2);
-    var PAINT_R = 140, CORNER_BAND = 180;
-    var t = String(shot.type||'').toLowerCase();
-    var xy = rightHalfCoords(shot, SRC);
-    var rx = xy[0], ry = xy[1];
-    if (t === '3pt'){
-      if (ry < CORNER_BAND || ry > (SRC.h - CORNER_BAND)) return 'c3';
-      return 'a3';
-    }
-    var dx = HOOP_X - rx, dy = HOOP_Y - ry;
-    var dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist <= PAINT_R) return 'paint';
-    return 'mid';
-  }
-  function applyFilters(shots){
-    var g = $('shot-game'), p = $('shot-player'), o = $('shot-opponent'), q = $('shot-period'), ty = $('shot-type'), r = $('shot-result');
-    var gv = g ? g.value : '', pv = p ? p.value : '', ov = o ? o.value : '', qv = q ? q.value : '', tv = ty ? ty.value : '', rv = r ? r.value : '';
-    return shots.filter(function(s){
-      if (gv && String(s.gameId) !== gv) return false;
-      if (pv && String(s.player) !== pv) return false;
-      if (ov && String(s.opponent) !== ov) return false;
-      if (qv && String(s.period) !== String(qv)) return false;
-      if (tv && String(s.type||'').toLowerCase() !== tv) return false;
-      if (rv !== '' && String(s.made) !== rv) return false;
-      return true;
-    });
-  }
-  function renderZoneLeaders(container, leaders){
-    if (!container) return;
-    var labels = { paint:'Paint (2PT)', mid:'Midrange (2PT)', c3:'Corner 3', a3:'Above Break 3' };
-    var order = ['paint','mid','c3','a3'];
-    var html = order.map(function(z){
-      var L = leaders[z];
-      if (!L) return '<div class="muted">No data for '+labels[z]+'</div>';
-      var fg = L.attempts ? ((L.makes*100/L.attempts).toFixed(1)+'%') : '0%';
-      var ep = (L.ep).toFixed(2);
-      return (
-        '<div class="shot-dist-bar" style="grid-template-columns:140px 1fr 160px; gap:8px; align-items:center;">'
-        + '<div style="font-weight:500; color:#cbd8f8;">'+labels[z]+'</div>'
-        + '<div class="muted" style="font-size:12px;">'+L.player+' • '+L.attempts+' att</div>'
-        + '<div style="text-align:right; font-size:12px; font-weight:600;">FG '+fg+' • EP '+ep+'</div>'
-        + '</div>'
-      );
-    }).join('');
-    container.innerHTML = html;
-  }
-  function computeLeaders(shots, SRC){
-    var byPlayer = new Map();
-    shots.forEach(function(s){
-      var name = String(s.player||'');
-      if (!name) return;
-      var zone = zoneOf(s, SRC);
-      var m = byPlayer.get(name);
-      if (!m) { m = { paint:{a:0,m:0}, mid:{a:0,m:0}, c3:{a:0,m:0}, a3:{a:0,m:0} }; byPlayer.set(name, m); }
-      m[zone].a++; if (s.made) m[zone].m++;
-    });
-    var zones = ['paint','mid','c3','a3'];
-    var out = {};
-    zones.forEach(function(z){
-      var best = null;
-      byPlayer.forEach(function(zmap, player){
-        var a = zmap[z].a, m = zmap[z].m;
-        if (a === 0) return;
-        var fg = m / a;
-        var pts = (z === 'paint' || z === 'mid') ? 2 : 3;
-        var ep = fg * pts;
-        var rec = { player: player, attempts: a, makes: m, fg: fg, ep: ep };
-        var MIN_ATT = 5;
-        if (!best) { best = rec; return; }
-        var lhsScore = (best.attempts >= MIN_ATT ? best.ep : (best.ep * (best.attempts/Math.max(best.attempts, MIN_ATT))));
-        var rhsScore = (rec.attempts  >= MIN_ATT ? rec.ep  : (rec.ep  * (rec.attempts /Math.max(rec.attempts , MIN_ATT))));
-        if (rhsScore > lhsScore) best = rec;
-      });
-      if (best) out[z] = best;
-    });
-    return out;
-  }
-  function update(){
-    var box = $('panel-shotmap');
-    var target = $('shot-zoneLeaders');
-    if (!box || !target) return;
-    try {
-      google.script.run
-        .withSuccessHandler(function(res){
-          if (!res || !res.shots) { target.innerHTML = '<div class="muted">No data</div>'; return; }
-          var shots = applyFilters(res.shots);
-          var leaders = computeLeaders(shots, res.srcSize || { w:1000, h:1000 });
-          renderZoneLeaders(target, leaders);
-        })
-        .withFailureHandler(function(){ target.innerHTML = '<div class="muted">Failed to load data</div>'; })
-        .shotMapGetShots();
-    } catch (e) {
-      // Likely not in Apps Script context yet
+  // Ensure login overlay is properly hidden
+  function ensureLoginOverlayHidden() {
+    const overlay = document.getElementById('loginOverlay');
+    if (!overlay) return;
+    
+    // If user is logged in, force hide overlay
+    if (window.CURRENT_USER_NAME) {
+      const isHidden = overlay.style.display === 'none' || 
+                       overlay.classList.contains('hidden') ||
+                       overlay.style.visibility === 'hidden';
+      if (!isHidden) {
+        console.log('Login overlay still visible after login, hiding...');
+        overlay.style.display = 'none';
+        overlay.style.visibility = 'hidden';
+        overlay.style.pointerEvents = 'none';
+        overlay.classList.add('hidden');
+      }
     }
   }
-  function bind(){
-    var controls = document.querySelectorAll('#panel-shotmap select, #panel-shotmap input');
-    controls.forEach(function(el){
-      var evt = (el.type === 'range' || el.type === 'checkbox') ? 'input' : 'change';
-      el.addEventListener(evt, function(){
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(update, 150);
-      });
+  
+  // Check periodically and on DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ensureLoginOverlayHidden);
+  } else {
+    ensureLoginOverlayHidden();
+  }
+  
+  // One follow-up check after page load
+  setTimeout(ensureLoginOverlayHidden, 500);
+  
+  // Removed aggressive polling for user name changes; rely on click handlers and one-off checks
+  
+  // Ensure buttons with onclick handlers have proper cursor styling
+  document.addEventListener('DOMContentLoaded', function() {
+    const buttons = document.querySelectorAll('button[onclick], .btn[onclick], button.btn');
+    buttons.forEach(function(btn) {
+      if (!btn.style.cursor) {
+        btn.style.cursor = 'pointer';
+      }
     });
-    var obsTarget = $('shot-filterSummary');
-    if (obsTarget && window.MutationObserver){
-      var mo = new MutationObserver(function(){
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(update, 150);
-      });
-      mo.observe(obsTarget, { childList:true, subtree:true, characterData:true });
+  });
+  
+  // Ensure all button onclick handlers work properly
+  function ensureButtonHandlers() {
+    // Find all buttons with onclick attributes
+    const buttons = document.querySelectorAll('button[onclick]');
+    buttons.forEach(function(button) {
+      // Ensure button is clickable
+      if (button.style.pointerEvents === 'none') {
+        button.style.pointerEvents = 'auto';
+      }
+      if (button.style.cursor === 'none' || !button.style.cursor) {
+        button.style.cursor = 'pointer';
+      }
+      
+      // Double-check onclick handler exists
+      const onclick = button.getAttribute('onclick');
+      if (onclick && onclick.trim()) {
+        // Try to validate the handler exists
+        try {
+          // If onclick references a function, check if it exists
+          const fnMatch = onclick.match(/(\w+)\(/);
+          if (fnMatch && fnMatch[1]) {
+            const fnName = fnMatch[1];
+            // Check if function exists globally
+            if (typeof window[fnName] !== 'function' && typeof eval(fnName) !== 'function') {
+              console.warn('Button onclick handler function not found:', fnName, button);
+            }
+          }
+        } catch (e) {
+          // Ignore errors in validation
+        }
+      }
+    });
+  }
+  
+  // Run on DOM ready and after a delay to catch dynamically added buttons
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ensureButtonHandlers);
+  } else {
+    ensureButtonHandlers();
+  }
+  setTimeout(ensureButtonHandlers, 500);
+  
+  // Add click event delegation for buttons that might not be working
+  document.addEventListener('click', function(e) {
+    // Check if click was on a button or inside a button
+    const button = e.target.closest('button');
+    if (!button) return;
+    
+    // If button is disabled, don't do anything
+    if (button.disabled) return;
+    
+    // IMPORTANT: Allow clicks on buttons INSIDE the login overlay (like the "Unlock" button)
+    const loginOverlay = document.getElementById('loginOverlay');
+    if (loginOverlay && loginOverlay.contains(button)) {
+      // This button is inside the login overlay - always allow it to work
+      return; // Don't block login buttons!
+    }
+    
+    // Check if there's a login overlay blocking OTHER buttons (not inside the overlay)
+    if (loginOverlay) {
+      // Check if overlay is actually visible
+      const isVisible = loginOverlay.style.display !== 'none' && 
+                       loginOverlay.style.display !== '' &&
+                       loginOverlay.style.visibility !== 'hidden' &&
+                       !loginOverlay.classList.contains('hidden') &&
+                       window.getComputedStyle(loginOverlay).display !== 'none' &&
+                       window.getComputedStyle(loginOverlay).visibility !== 'hidden';
+      
+      // If user is logged in but overlay is visible, hide it and allow click
+      if (window.CURRENT_USER_NAME && isVisible) {
+        console.log('Forcing login overlay to hide - user is logged in');
+        loginOverlay.style.display = 'none';
+        loginOverlay.style.visibility = 'hidden';
+        loginOverlay.style.pointerEvents = 'none';
+        loginOverlay.classList.add('hidden');
+        // Don't block the click - allow it to proceed
+      } else if (isVisible && !window.CURRENT_USER_NAME) {
+        // User is not logged in and overlay is visible - block clicks on buttons OUTSIDE the overlay
+        // But we already checked above that this button is NOT inside the overlay
+        e.stopPropagation();
+        e.preventDefault();
+        return false;
+      }
+    }
+    
+    // Check if button has onclick attribute
+    const onclick = button.getAttribute('onclick');
+    if (onclick) {
+      // Ensure onclick handler will execute by checking overlay isn't blocking
+      console.log('Button clicked:', button.textContent || button.innerText, 'onclick:', onclick);
+    }
+  }, true); // Use capture phase to catch before other handlers
+})();
+
+// Ensure openClipModal is accessible from player modal and provide fallback
+(function(){
+  // Helper function to parse time strings
+  function parseTime(timeStr) {
+    if (!timeStr) return 0;
+    const str = String(timeStr);
+    if (/^\d+$/.test(str)) return parseInt(str, 10);
+    if (/^(\d+)m(\d+)s$/i.test(str)) {
+      const match = str.match(/^(\d+)m(\d+)s$/i);
+      return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+    }
+    return 0;
+  }
+  
+  // Fallback implementation if main function isn't loaded yet
+  function fallbackOpenClipModal(url) {
+    const modal = document.getElementById('clipModal');
+    const frame = document.getElementById('clipFrame');
+    if (!modal || !frame) {
+      console.error('Clip modal elements not found');
+      return;
+    }
+    
+    // Simple URL normalization for common video platforms
+    function normalizeUrl(u) {
+      u = String(u || '').trim();
+      if (!u) return '';
+      
+      var embedUrl = '';
+      var videoId = '';
+      var startParam = '';
+      
+      // YouTube
+      if (/youtu\.be\/([a-zA-Z0-9_-]+)/i.test(u)) {
+        var match = u.match(/youtu\.be\/([a-zA-Z0-9_-]+)/i);
+        videoId = match[1];
+        var params = new URLSearchParams(u.split('?')[1] || '');
+        var start = params.get('t') || params.get('start') || '';
+        startParam = start ? '?start=' + parseTime(start) + '&autoplay=1' : '?autoplay=1';
+        embedUrl = 'https://www.youtube.com/embed/' + videoId + startParam;
+      } else if (/youtube\.com\/watch/i.test(u)) {
+        try {
+          var urlObj = new URL(u);
+          videoId = urlObj.searchParams.get('v') || '';
+          var start = urlObj.searchParams.get('t') || urlObj.searchParams.get('start') || '';
+          startParam = start ? '?start=' + parseTime(start) + '&autoplay=1' : '?autoplay=1';
+          embedUrl = 'https://www.youtube.com/embed/' + videoId + startParam;
+        } catch(e) {
+          embedUrl = u;
+        }
+      } else if (/vimeo\.com\/(\d+)/i.test(u)) {
+        // Vimeo
+        var match = u.match(/vimeo\.com\/(\d+)/i);
+        videoId = match[1];
+        embedUrl = 'https://player.vimeo.com/video/' + videoId + '?autoplay=1';
+      } else if (/drive\.google\.com/i.test(u)) {
+        // Google Drive
+        embedUrl = u;
+      } else {
+        embedUrl = u;
+      }
+      
+      return embedUrl;
+    }
+    
+    const embedUrl = normalizeUrl(url);
+    frame.src = embedUrl;
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+  
+  function fallbackCloseClipModal() {
+    const modal = document.getElementById('clipModal');
+    const frame = document.getElementById('clipFrame');
+    if (frame) frame.src = '';
+    if (modal) modal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+  
+  // Set up fallback functions on window
+  window.openClipModal = window.openClipModal || fallbackOpenClipModal;
+  window.closeClipModal = window.closeClipModal || fallbackCloseClipModal;
+  
+  // This ensures the functions from tmp_script.html override fallbacks when loaded
+  function ensureClipModalAccess() {
+    // The function should be available from tmp_script.html, but ensure it's on window
+    if (typeof openClipModal === 'function') {
+      window.openClipModal = openClipModal;
+    }
+    if (typeof closeClipModal === 'function') {
+      window.closeClipModal = closeClipModal;
+    }
+    if (typeof discussClip === 'function' && !window.discussClip) {
+      window.discussClip = discussClip;
     }
   }
-  document.addEventListener('DOMContentLoaded', function(){
-    bind();
-    setTimeout(update, 400);
+  
+  // Try to ensure access on DOM ready and periodically
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ensureClipModalAccess);
+  } else {
+    ensureClipModalAccess();
+  }
+  
+  // Also ensure after a short delay to catch if tmp_script loads slightly later
+  setTimeout(ensureClipModalAccess, 500);
+  
+  // Add event delegation for clip links in player modal
+  document.addEventListener('click', function(e) {
+    const pClips = document.getElementById('pClips');
+    if (!pClips) return;
+    
+    // Check if click is within player clips container
+    if (pClips.contains(e.target)) {
+      const link = e.target.closest('a[data-url]');
+      if (link && link.dataset.url) {
+        e.preventDefault();
+        e.stopPropagation();
+        const url = link.dataset.url;
+        
+        // Call openClipModal - fallback is already set up
+        if (typeof window.openClipModal === 'function') {
+          window.openClipModal(url);
+        } else {
+          console.error('openClipModal not available');
+        }
+        return false;
+      }
+      
+      // Handle discuss clip link
+      const discussLink = e.target.closest('a');
+      if (discussLink) {
+        const onclick = discussLink.getAttribute('onclick');
+        if (onclick && onclick.includes('discussClip')) {
+          e.preventDefault();
+          e.stopPropagation();
+          const match = onclick.match(/discussClip\('([^']+)'\)/);
+          if (match && match[1]) {
+            const encodedUrl = match[1];
+            if (typeof window.discussClip === 'function') {
+              window.discussClip(encodedUrl);
+            } else if (typeof discussClip === 'function') {
+              discussClip(encodedUrl);
+            }
+          }
+          return false;
+        }
+      }
+    }
+  }, true);
+  
+  // Also close modal on background click or Escape key
+  document.addEventListener('click', function(e) {
+    const modal = document.getElementById('clipModal');
+    if (modal && modal.style.display !== 'none' && e.target === modal) {
+      window.closeClipModal();
+    }
+  });
+  
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      const modal = document.getElementById('clipModal');
+      if (modal && modal.style.display !== 'none') {
+        window.closeClipModal();
+      }
+    }
   });
 })();
+
+// Player Library Grid View
+(function(){
+  let playerPhotosCache = new Map();
+  window.playerPhotosCache = playerPhotosCache; // Expose globally for clip thumbnails
+  let currentModalPlayer = null;
+  
+  function updatePlayerPhotoForModal(url) {
+    const img = document.getElementById('playerModalPhoto');
+    if (!img) return;
+    if (url) {
+      if (img.src !== url) img.src = url;
+      img.style.display = 'block';
+    } else {
+      img.removeAttribute('src');
+      img.style.display = 'none';
+    }
+  }
+  
+  function openPlayerDetailModal(playerName) {
+    const modal = document.getElementById('playerDetailModal');
+    const title = document.getElementById('playerModalTitle');
+    if (!modal || !title) return;
+    
+    currentModalPlayer = playerName;
+    title.textContent = playerName;
+    modal.style.display = 'block';
+    document.body.style.overflow = 'hidden';
+    
+    // Update modal photo immediately if cached
+    const cachedUrl = playerPhotosCache.get(playerName);
+    if (cachedUrl) {
+      updatePlayerPhotoForModal(cachedUrl);
+    } else {
+      // Load photo immediately
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function(bundle) {
+            if (bundle && bundle.ok && bundle.photoUrl) {
+              playerPhotosCache.set(playerName, bundle.photoUrl);
+              if (currentModalPlayer === playerName) {
+                updatePlayerPhotoForModal(bundle.photoUrl);
+              }
+            }
+          })
+          .getPlayerBundle(playerName, 0);
+      }
+    }
+    
+    // Load player data if onPlayerChange exists
+    if (typeof onPlayerChange === 'function') {
+      onPlayerChange(playerName);
+    }
+  }
+  
+  function closePlayerDetailModal() {
+    const modal = document.getElementById('playerDetailModal');
+    if (!modal) return;
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+    currentModalPlayer = null;
+  }
+  
+  window.openPlayerDetailModal = openPlayerDetailModal;
+  window.closePlayerDetailModal = closePlayerDetailModal;
+  
+  // Override updatePlayerPhoto to also update modal photo if modal is open
+  const originalUpdatePhoto = window.updatePlayerPhoto;
+  if (originalUpdatePhoto) {
+    window.updatePlayerPhoto = function(url) {
+      originalUpdatePhoto(url);
+      // If modal is open, update modal photo
+      if (currentModalPlayer && url) {
+        playerPhotosCache.set(currentModalPlayer, url);
+        updatePlayerPhotoForModal(url);
+      }
+    };
+  } else {
+    window.updatePlayerPhoto = function(url) {
+      const img = document.getElementById('playerPhoto');
+      const modalImg = document.getElementById('playerModalPhoto');
+      if (img) {
+        if (url) {
+          img.src = url;
+          img.style.display = 'block';
+        } else {
+          img.style.display = 'none';
+        }
+      }
+      // If modal is open, update modal photo
+      if (currentModalPlayer && modalImg) {
+        if (url) {
+          playerPhotosCache.set(currentModalPlayer, url);
+          modalImg.src = url;
+          modalImg.style.display = 'block';
+        } else {
+          modalImg.style.display = 'none';
+        }
+      }
+    };
+  }
+  
+  // Trait ratings cache for rankings
+  let traitRatingsCache = null;
+  let playerRankings = new Map();
+  let playerCards = [];
+  
+  // Game ratings cache
+  let gameRatingsCache = null; // { playerName: { avg: number, games: number } }
+  
+  // Fetch game ratings from Log sheet (GBL/EC games only)
+  function fetchGameRatings() {
+    if (gameRatingsCache) return Promise.resolve(gameRatingsCache);
+    
+    return new Promise(function(resolve, reject) {
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function(data) {
+            if (data && data.ok && data.players) {
+              gameRatingsCache = data.players;
+              resolve(data.players);
+            } else {
+              gameRatingsCache = {};
+              resolve({});
+            }
+          })
+          .withFailureHandler(function(err) {
+            gameRatingsCache = {};
+            resolve({});
+          })
+          .getGameRatings();
+      } else {
+        gameRatingsCache = {};
+        resolve({});
+      }
+    });
+  }
+  
+  function getPlayerGameStats(playerName) {
+    if (!gameRatingsCache) return null;
+    return gameRatingsCache[playerName] || null;
+  }
+  
+  function getPlayerOverallAvg(playerName) {
+    if (!traitRatingsCache || !traitRatingsCache.rows) return null;
+    
+    let overallAvg = null;
+    traitRatingsCache.rows.forEach(function(traitRow) {
+      const name = String(traitRow[0] || '').trim();
+      if (name === playerName) {
+        // Extract trait scores (indices 2-7: Exec, Energy, Comm, Adapt, Resilience, Impact)
+        const traits = traitRow.slice(2, 8).map(function(val) {
+          if (val == null || val === '') return null;
+          if (typeof val === 'number') return val;
+          const str = String(val).trim();
+          if (!str) return null;
+          const cleaned = str.replace(',', '.').replace(/[^\d.-]/g, '');
+          const num = parseFloat(cleaned);
+          return !isNaN(num) && num > 0 ? num : null;
+        }).filter(function(v) { return v !== null; });
+        
+        if (traits.length > 0) {
+          overallAvg = traits.reduce(function(a, b) { return a + b; }, 0) / traits.length;
+        }
+      }
+    });
+    
+    return overallAvg;
+  }
+  
+  function getPlayerTraits(playerName) {
+    if (!traitRatingsCache || !traitRatingsCache.rows) return null;
+    
+    // Headers: ["Player","n","Exec","Energy","Comm","Adapt","Resilience","Impact"]
+    const traitNames = ['Exec', 'Energy', 'Comm', 'Adapt', 'Resilience', 'Impact'];
+    
+    let traitsData = null;
+    traitRatingsCache.rows.forEach(function(traitRow) {
+      const name = String(traitRow[0] || '').trim();
+      if (name === playerName) {
+        // Extract trait scores (indices 2-7: Exec, Energy, Comm, Adapt, Resilience, Impact)
+        const traits = [];
+        for (let i = 2; i < 8; i++) {
+          const val = traitRow[i];
+          let num = null;
+          if (val == null || val === '') {
+            num = null;
+          } else if (typeof val === 'number') {
+            num = val;
+          } else {
+            const str = String(val).trim();
+            if (!str) {
+              num = null;
+            } else {
+              const cleaned = str.replace(',', '.').replace(/[^\d.-]/g, '');
+              num = parseFloat(cleaned);
+              if (isNaN(num) || num <= 0) num = null;
+            }
+          }
+          
+          if (num !== null) {
+            traits.push({
+              name: traitNames[i - 2],
+              value: num
+            });
+          }
+        }
+        
+        if (traits.length > 0) {
+          // Find highest and lowest
+          let highest = traits[0];
+          let lowest = traits[0];
+          
+          traits.forEach(function(trait) {
+            if (trait.value > highest.value) {
+              highest = trait;
+            }
+            if (trait.value < lowest.value) {
+              lowest = trait;
+            }
+          });
+          
+          traitsData = {
+            highest: highest,
+            lowest: lowest,
+            all: traits
+          };
+        }
+      }
+    });
+    
+    return traitsData;
+  }
+  
+  function addTraitsStats(card, playerName) {
+    const traitsData = getPlayerTraits(playerName);
+    
+    // Remove existing traits stats if any
+    const existing = card.querySelector('.player-card-traits');
+    if (existing) existing.remove();
+    
+    if (!traitsData || !traitsData.highest || !traitsData.lowest) {
+      return;
+    }
+    
+    const traitsDiv = document.createElement('div');
+    traitsDiv.className = 'player-card-traits';
+    
+    // Strongest trait
+    const strongestSpan = document.createElement('span');
+    strongestSpan.className = 'player-card-traits-item';
+    const strongestLabel = document.createElement('span');
+    strongestLabel.className = 'player-card-traits-label';
+    strongestLabel.textContent = 'Strongest: ';
+    strongestSpan.appendChild(strongestLabel);
+    const strongestValue = document.createElement('span');
+    strongestValue.className = 'player-card-traits-value player-card-traits-strongest';
+    strongestValue.textContent = traitsData.highest.name + ' (' + traitsData.highest.value.toFixed(1) + ')';
+    strongestSpan.appendChild(strongestValue);
+    traitsDiv.appendChild(strongestSpan);
+    
+    // Separator
+    const separator = document.createElement('span');
+    separator.className = 'player-card-traits-item';
+    separator.textContent = ' | ';
+    separator.style.margin = '0 4px';
+    traitsDiv.appendChild(separator);
+    
+    // Weakest trait
+    const weakestSpan = document.createElement('span');
+    weakestSpan.className = 'player-card-traits-item';
+    const weakestLabel = document.createElement('span');
+    weakestLabel.className = 'player-card-traits-label';
+    weakestLabel.textContent = 'Weakest: ';
+    weakestSpan.appendChild(weakestLabel);
+    const weakestValue = document.createElement('span');
+    weakestValue.className = 'player-card-traits-value player-card-traits-weakest';
+    weakestValue.textContent = traitsData.lowest.name + ' (' + traitsData.lowest.value.toFixed(1) + ')';
+    weakestSpan.appendChild(weakestValue);
+    traitsDiv.appendChild(weakestSpan);
+    
+    card.appendChild(traitsDiv);
+  }
+  
+  function addGameStats(card, playerName) {
+    const stats = getPlayerGameStats(playerName);
+    const overallAvg = getPlayerOverallAvg(playerName);
+    
+    // Remove existing stats if any
+    const existing = card.querySelector('.player-card-game-stats');
+    if (existing) existing.remove();
+    
+    // Only show if we have game stats
+    if (!stats || stats.games === 0) {
+      return;
+    }
+    
+    const statsDiv = document.createElement('div');
+    statsDiv.className = 'player-card-game-stats';
+    
+    // Average game rating
+    const gameItem = document.createElement('div');
+    gameItem.className = 'player-card-game-stats-item';
+    
+    const gameLabel = document.createElement('span');
+    gameLabel.className = 'player-card-game-stats-label';
+    gameLabel.textContent = 'Avg game rating:';
+    gameItem.appendChild(gameLabel);
+    
+    const gameValue = document.createElement('span');
+    gameValue.className = 'player-card-game-stats-value';
+    gameValue.textContent = stats.avg.toFixed(1) + ' (' + stats.games + ' ' + (stats.games === 1 ? 'game' : 'games') + ')';
+    gameItem.appendChild(gameValue);
+    
+    statsDiv.appendChild(gameItem);
+    
+    // Overall average rating (if available)
+    if (overallAvg !== null) {
+      const overallItem = document.createElement('div');
+      overallItem.className = 'player-card-game-stats-item';
+      
+      const overallLabel = document.createElement('span');
+      overallLabel.className = 'player-card-game-stats-label';
+      overallLabel.textContent = 'Avg overall rating:';
+      overallItem.appendChild(overallLabel);
+      
+      const overallValue = document.createElement('span');
+      overallValue.className = 'player-card-game-stats-value';
+      overallValue.textContent = overallAvg.toFixed(1);
+      overallItem.appendChild(overallValue);
+      
+      statsDiv.appendChild(overallItem);
+    }
+    
+    card.appendChild(statsDiv);
+  }
+  
+  // Fetch trait ratings and calculate rankings
+  function fetchTraitRatingsAndRank() {
+    if (traitRatingsCache) return Promise.resolve(traitRatingsCache);
+    
+    return new Promise(function(resolve, reject) {
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function(data) {
+            if (data && data.ok && data.headers && data.rows) {
+              traitRatingsCache = data;
+              
+              // Calculate total avg rating for each player and rank them
+              const playersWithRatings = [];
+              const headers = data.headers; // ["Player","n","Exec","Energy","Comm","Adapt","Resilience","Impact"]
+              
+              data.rows.forEach(function(row) {
+                const playerName = String(row[0] || '').trim();
+                if (!playerName) return;
+                
+                // Extract trait scores (indices 2-7: Exec, Energy, Comm, Adapt, Resilience, Impact)
+                const traits = row.slice(2, 8).map(function(val) {
+                  const num = parseFloat(String(val || '').replace(',', '.'));
+                  return isNaN(num) ? null : num;
+                }).filter(function(v) { return v !== null; });
+                
+                // Calculate average
+                const avgRating = traits.length > 0 
+                  ? traits.reduce(function(a, b) { return a + b; }, 0) / traits.length 
+                  : null;
+                
+                if (avgRating !== null) {
+                  playersWithRatings.push({
+                    player: playerName,
+                    avgRating: avgRating
+                  });
+                }
+              });
+              
+              // Sort by avgRating descending
+              playersWithRatings.sort(function(a, b) {
+                return b.avgRating - a.avgRating;
+              });
+              
+              // Assign rankings
+              playersWithRatings.forEach(function(item, index) {
+                playerRankings.set(item.player, index + 1);
+              });
+              
+              resolve(data);
+            } else {
+              resolve(null);
+            }
+          })
+          .withFailureHandler(function(err) {
+            console.error('Failed to load trait ratings:', err);
+            resolve(null);
+          })
+          .getTraitRatingsGrid();
+      } else {
+        resolve(null);
+      }
+    });
+  }
+  
+  function getPlayerRank(playerName) {
+    return playerRankings.get(playerName) || null;
+  }
+  
+  function getTotalRankedPlayers() {
+    return playerRankings.size;
+  }
+  
+  function addRankingBadge(card, playerName) {
+    const rank = getPlayerRank(playerName);
+    if (rank !== null) {
+      // Remove existing badge if any
+      const existingBadge = card.querySelector('.player-card-ranking');
+      if (existingBadge) existingBadge.remove();
+      
+      const totalRanked = getTotalRankedPlayers();
+      const rankBadge = document.createElement('div');
+      rankBadge.className = 'player-card-ranking';
+      
+      // Top 3 get gold, last 3 get red
+      if (rank <= 3) {
+        rankBadge.classList.add('top-3');
+      } else if (totalRanked >= 3 && rank > totalRanked - 3) {
+        rankBadge.classList.add('bottom-3');
+      }
+      
+      rankBadge.textContent = rank;
+      card.appendChild(rankBadge);
+    }
+  }
+  
+  let isRenderingPlayerGrid = false;
+  
+  function renderPlayerLibraryGrid(players) {
+    const grid = document.getElementById('playerLibraryGrid');
+    if (!grid) {
+      console.error('playerLibraryGrid element not found');
+      return;
+    }
+    
+    if (!Array.isArray(players)) {
+      console.error('Invalid players array:', players);
+      return;
+    }
+    
+    // Prevent overlapping renders
+    if (isRenderingPlayerGrid) {
+      console.log('Already rendering player grid, skipping duplicate call');
+      return;
+    }
+    isRenderingPlayerGrid = true;
+    
+    // Ensure grid is visible
+    grid.style.display = 'grid';
+    grid.style.visibility = 'visible';
+    grid.style.opacity = '1';
+    
+    grid.innerHTML = '';
+    playerCards = [];
+    
+    console.log('Rendering player grid with', players.length, 'players:', players);
+    
+    if (players.length === 0) {
+      console.warn('No players to render');
+      grid.innerHTML = '<div style="padding:40px; text-align:center; color:var(--muted);">No players found</div>';
+      isRenderingPlayerGrid = false;
+      return;
+    }
+    
+    // Fetch trait ratings first to sort players by rating
+    // Also fetch game ratings in parallel
+    Promise.all([
+      fetchTraitRatingsAndRank(),
+      fetchGameRatings()
+    ]).then(function() {
+      // Sort players by ranking (highest to lowest)
+      const sortedPlayers = players.slice().sort(function(a, b) {
+        const rankA = getPlayerRank(a) || 9999; // Players without ranking go to end
+        const rankB = getPlayerRank(b) || 9999;
+        return rankA - rankB; // Lower rank number = higher rating
+      });
+      
+      // Render players in sorted order
+      renderPlayersInGrid(sortedPlayers);
+      isRenderingPlayerGrid = false;
+    }).catch(function(err) {
+      // Render unsorted if ratings fail
+      renderPlayersInGrid(players);
+      isRenderingPlayerGrid = false;
+    });
+  }
+  
+  function renderPlayersInGrid(players) {
+    const grid = document.getElementById('playerLibraryGrid');
+    if (!grid) return;
+    
+    // Clear the grid to prevent duplicates
+    grid.innerHTML = '';
+    playerCards = [];
+    
+    players.forEach(function(playerName, index) {
+      // More explicit filtering - only skip if null, undefined, or empty string
+      if (playerName == null || String(playerName).trim() === '') {
+        console.warn('Skipping invalid player at index', index, ':', playerName);
+        return;
+      }
+      
+      const card = document.createElement('div');
+      card.className = 'player-card';
+      card.dataset.playerName = playerName;
+      card.dataset.index = index;
+      
+      // Open modal on click
+      card.onclick = function() {
+        openPlayerDetailModal(playerName);
+      };
+      
+      // Add ranking badge if available (will be updated when trait ratings load)
+      addRankingBadge(card, playerName);
+      
+      // Try to get photo from cache or load it
+      const cachedUrl = playerPhotosCache.get(playerName);
+      const photoUrl = cachedUrl || '';
+      
+      if (photoUrl) {
+        const img = document.createElement('img');
+        img.className = 'player-card-photo';
+        img.src = photoUrl;
+        img.alt = playerName;
+        img.onerror = function() {
+          this.style.display = 'none';
+          const placeholder = card.querySelector('.player-card-no-photo');
+          if (placeholder) placeholder.style.display = 'flex';
+        };
+        card.appendChild(img);
+        
+        const noPhoto = document.createElement('div');
+        noPhoto.className = 'player-card-no-photo';
+        noPhoto.style.display = 'none';
+        noPhoto.textContent = '🏀';
+        card.appendChild(noPhoto);
+      } else {
+        const noPhoto = document.createElement('div');
+        noPhoto.className = 'player-card-no-photo';
+        noPhoto.textContent = '🏀';
+        card.appendChild(noPhoto);
+        
+                 // Load photo asynchronously
+                 if (typeof google !== 'undefined' && google.script && google.script.run) {
+                   google.script.run
+                     .withSuccessHandler(function(bundle) {
+                       if (bundle && bundle.ok && bundle.photoUrl) {
+                         playerPhotosCache.set(playerName, bundle.photoUrl);
+                         const img = card.querySelector('img');
+                         const placeholder = card.querySelector('.player-card-no-photo');
+                         if (img) {
+                           img.src = bundle.photoUrl;
+                           img.style.display = 'block';
+                           if (placeholder) placeholder.style.display = 'none';
+                         } else if (placeholder) {
+                           placeholder.style.display = 'none';
+                           const newImg = document.createElement('img');
+                           newImg.className = 'player-card-photo';
+                           newImg.src = bundle.photoUrl;
+                           newImg.alt = playerName;
+                           newImg.onerror = function() {
+                             this.style.display = 'none';
+                             if (placeholder) placeholder.style.display = 'flex';
+                           };
+                           card.insertBefore(newImg, placeholder);
+                         }
+                       } else {
+                         // If bundle doesn't have photo, check if placeholder should show
+                         const placeholder = card.querySelector('.player-card-no-photo');
+                         if (placeholder && placeholder.style.display === 'none') {
+                           placeholder.style.display = 'flex';
+                         }
+                       }
+                     })
+                     .withFailureHandler(function(err) {
+                       // If photo load fails, ensure placeholder is visible
+                       const placeholder = card.querySelector('.player-card-no-photo');
+                       const img = card.querySelector('img');
+                       if (img) img.style.display = 'none';
+                       if (placeholder) placeholder.style.display = 'flex';
+                     })
+                     .getPlayerBundle(playerName, 0);
+                 }
+      }
+      
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'player-card-name';
+      nameDiv.textContent = playerName;
+      card.appendChild(nameDiv);
+      
+      // Add game stats placeholder (will be updated when game ratings load)
+      
+      grid.appendChild(card);
+      playerCards.push(card);
+    });
+    
+    // Update all cards with rankings and game stats
+    // Note: Ratings were already fetched in renderPlayerLibraryGrid, so we just update the UI
+    if (playerCards.length > 0) {
+      playerCards.forEach(function(card) {
+        const playerName = card.dataset.playerName;
+        if (playerName) {
+          addRankingBadge(card, playerName);
+          addGameStats(card, playerName);
+          addTraitsStats(card, playerName);
+        }
+      });
+    }
+  }
+  
+  // Override loadPlayers to render grid instead
+  const originalLoadPlayers = window.loadPlayers;
+  if (originalLoadPlayers) {
+    window.loadPlayers = function(force) {
+      const cached = Array.isArray(window.dataCache && window.dataCache.playersList) ? window.dataCache.playersList : null;
+      if (!force && cached && cached.length) {
+        renderPlayerLibraryGrid(cached);
+        return;
+      }
+      
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function(list) {
+            // Don't filter - get all players including empty strings (will be filtered in renderPlayerLibraryGrid)
+            const arr = Array.isArray(list) ? list : [];
+            // Filter out only null, undefined, and empty strings
+            const filtered = arr.filter(function(name) {
+              return name != null && String(name).trim() !== '';
+            });
+            if (window.dataCache) window.dataCache.playersList = filtered;
+            console.log('Loaded players:', filtered.length, filtered);
+            renderPlayerLibraryGrid(filtered);
+          })
+          .withFailureHandler(function(err) {
+            console.error('getPlayers error:', err);
+            renderPlayerLibraryGrid([]);
+          })
+          .getPlayers();
+      }
+    };
+  } else {
+    window.loadPlayers = function(force) {
+          if (typeof google !== 'undefined' && google.script && google.script.run) {
+            google.script.run
+              .withSuccessHandler(function(list) {
+                // Don't filter - get all players including empty strings (will be filtered in renderPlayerLibraryGrid)
+                const arr = Array.isArray(list) ? list : [];
+                // Filter out only null, undefined, and empty strings
+                const filtered = arr.filter(function(name) {
+                  return name != null && String(name).trim() !== '';
+                });
+                console.log('Loaded players:', filtered.length, filtered);
+                renderPlayerLibraryGrid(filtered);
+              })
+              .withFailureHandler(function(err) {
+                console.error('getPlayers error:', err);
+                renderPlayerLibraryGrid([]);
+              })
+              .getPlayers();
+          }
+    };
+  }
+  
+  // Close modal on background click
+  document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('playerDetailModal');
+    if (modal) {
+      modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+          closePlayerDetailModal();
+        }
+      });
+    }
+    
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        const modal = document.getElementById('playerDetailModal');
+        if (modal && modal.style.display !== 'none') {
+          closePlayerDetailModal();
+        }
+      }
+    });
+  });
+})();
+
 // Admin Portal Functions
 function loadAdminStats() {
   console.log('loadAdminStats called');
@@ -4330,18 +5560,10 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     observer.observe(adminPanel, { attributes: true, attributeFilter: ['class'] });
     
-    // Also check on interval in case MutationObserver misses something
-    setInterval(function() {
-      const isVisible = adminPanel.classList.contains('active');
-      if (isVisible && !wasVisible && typeof loadAdminStats === 'function') {
-        console.log('Panel detected as active via interval, loading stats...');
-        loadAdminStats();
-      }
-      wasVisible = isVisible;
-    }, 500);
+    // Avoid extra polling; rely on MutationObserver above
   }
   
-  // Watch for CURRENT_USER_NAME changes (after login)
+  // Throttle user change checks to reduce overhead
   let lastUserName = window.CURRENT_USER_NAME || '';
   setInterval(function() {
     const currentUserName = window.CURRENT_USER_NAME || '';
@@ -4349,7 +5571,7 @@ document.addEventListener('DOMContentLoaded', function() {
       lastUserName = currentUserName;
       updateAdminTabVisibility();
     }
-  }, 500);
+  }, 3000);
   
   // Track tab views by intercepting showPanel if it exists
   if (typeof showPanel !== 'undefined') {
@@ -4542,6 +5764,7 @@ function closeUserDetail() {
 
  
    
+
 
 
 
