@@ -10464,157 +10464,164 @@ function _spiralDetectDips_(sessions, baselines, allSessionsWithNotes) {
   let dipNumber = 1;
   const usedIndices = new Set(); // Track which session indices are already in a dip to avoid overlaps
   
-  for (let i = 0; i < baselines.length; i++) {
-    const baseline = baselines[i];
-    const baselineValue = baseline.baselineValue;
-    const baselineEndIndex = baseline.endIndex;
-    
-    let dipStartIndex = null;
-    let dipDepth = 0;
-    let dipSessions = [];
-    let dipEnded = false;
-    
-    for (let j = baselineEndIndex + 1; j < sessions.length; j++) {
-      // Skip if this session is already part of another dip
-      if (usedIndices.has(j)) {
-        // If we were tracking a dip and hit an overlap, end the dip at previous session
-        if (dipStartIndex !== null && dipSessions.length > 0) {
-          const prevIndex = j - 1;
-          if (prevIndex >= dipStartIndex) {
-            const dipStartDate = sessions[dipStartIndex].date;
-            const dipEndDate = sessions[prevIndex].date;
-            const dipNotes = allSessionsWithNotes.filter(s => {
-              const sDate = s.date instanceof Date ? s.date : new Date(s.date);
-              return sDate >= dipStartDate && sDate <= dipEndDate;
-            }).flatMap(s => s.notes || []);
-            
-            const dipAnalysis = _spiralClassifyDipType_(dipNotes);
-            
-            dips.push({
-              dipNumber: dipNumber++,
-              baselineIndex: i,
-              startIndex: dipStartIndex,
-              endIndex: prevIndex,
-              depth: dipDepth,
-              baselineValue: baselineValue,
-              lowestValue: Math.min(...dipSessions.map(s => s.value)),
-              sessions: dipSessions,
-              notes: dipNotes,
-              type: dipAnalysis.type,
-              learningScore: dipAnalysis.learningScore,
-              matchedLearningKeywords: dipAnalysis.matchedLearningKeywords || [],
-              matchedConcernKeywords: dipAnalysis.matchedConcernKeywords || []
-            });
-            
-            // Mark these indices as used
-            for (let idx = dipStartIndex; idx <= prevIndex; idx++) {
-              usedIndices.add(idx);
-            }
-          }
-          dipEnded = true;
-        }
-        continue;
-      }
-      
-      const currentValue = sessions[j].value;
-      const drop = baselineValue - currentValue;
-      
-      // Dip starts when rating drops 0.3+ below baseline (increased threshold to avoid false positives)
-      if (drop >= 0.3 && dipStartIndex === null) {
-        dipStartIndex = j;
-        dipDepth = drop;
-        dipSessions = [sessions[j]];
-      }
-      // Continue dip while below baseline
-      else if (dipStartIndex !== null && currentValue < baselineValue) {
-        dipDepth = Math.max(dipDepth, baselineValue - currentValue);
-        dipSessions.push(sessions[j]);
-      }
-      // Dip ends when rating returns to baseline level
-      else if (dipStartIndex !== null && currentValue >= baselineValue - 0.1) {
-        // Get notes during dip period
-        const dipStartDate = sessions[dipStartIndex].date;
-        const dipEndDate = sessions[j].date;
-        const dipNotes = allSessionsWithNotes.filter(s => {
-          const sDate = s.date instanceof Date ? s.date : new Date(s.date);
-          return sDate >= dipStartDate && sDate <= dipEndDate;
-        }).flatMap(s => s.notes || []);
-        
-        const dipAnalysis = _spiralClassifyDipType_(dipNotes);
-        
-        dips.push({
-          dipNumber: dipNumber++,
-          baselineIndex: i,
-          startIndex: dipStartIndex,
-          endIndex: j,
-          depth: dipDepth,
-          baselineValue: baselineValue,
-          lowestValue: Math.min(...dipSessions.map(s => s.value)),
-          sessions: dipSessions,
-          notes: dipNotes,
-          type: dipAnalysis.type,
-          learningScore: dipAnalysis.learningScore,
-          matchedLearningKeywords: dipAnalysis.matchedLearningKeywords || [],
-          matchedConcernKeywords: dipAnalysis.matchedConcernKeywords || []
-        });
-        
-        // Mark these indices as used
-        for (let idx = dipStartIndex; idx <= j; idx++) {
-          usedIndices.add(idx);
-        }
-        
-        dipEnded = true;
-        break;
+  if (!baselines || baselines.length === 0) return dips;
+  
+  // Find the active baseline for each session
+  // A baseline is "active" for sessions that come after it ends, until the next baseline starts
+  const getActiveBaseline = (sessionIndex) => {
+    // Find the most recent baseline that ended before or at this session
+    for (let i = baselines.length - 1; i >= 0; i--) {
+      if (baselines[i].endIndex <= sessionIndex) {
+        return baselines[i];
       }
     }
+    // If no baseline found, use the first one (shouldn't happen, but safety check)
+    return baselines[0] || null;
+  };
+  
+  // Iterate through sessions chronologically, looking for dips
+  let currentDip = null;
+  
+  for (let j = 0; j < sessions.length; j++) {
+    // Skip if already in a dip
+    if (usedIndices.has(j)) continue;
     
-    // Handle ongoing dip (dip that hasn't returned to baseline yet) - only if no completed dip was found and it's the last baseline
-    if (dipStartIndex !== null && !dipEnded && dipSessions.length >= 2 && i === baselines.length - 1) {
-      // Only check for ongoing dips on the most recent baseline to avoid duplicates
-      const lastSessionIndex = sessions.length - 1;
-      const lastSession = sessions[lastSessionIndex];
-      
-      // Check if any of the sessions in this potential dip are already used
-      let hasOverlap = false;
-      for (let idx = dipStartIndex; idx <= lastSessionIndex; idx++) {
-        if (usedIndices.has(idx)) {
-          hasOverlap = true;
-          break;
-        }
-      }
-      
-      if (lastSession && lastSession.value < baselineValue && !hasOverlap) {
-        // Get notes during dip period (from start to now)
-        const dipStartDate = sessions[dipStartIndex].date;
-        const dipEndDate = sessions[lastSessionIndex].date;
-        const dipNotes = allSessionsWithNotes.filter(s => {
-          const sDate = s.date instanceof Date ? s.date : new Date(s.date);
-          return sDate >= dipStartDate && sDate <= dipEndDate;
-        }).flatMap(s => s.notes || []);
-        
-        const dipAnalysis = _spiralClassifyDipType_(dipNotes);
-        
-        dips.push({
+    const session = sessions[j];
+    const activeBaseline = getActiveBaseline(j);
+    if (!activeBaseline) continue;
+    
+    const baselineValue = activeBaseline.baselineValue;
+    const currentValue = session.value;
+    const drop = baselineValue - currentValue;
+    
+    // Check if we're starting a new dip (drop >= 0.3 below baseline)
+    if (drop >= 0.3) {
+      if (!currentDip) {
+        // Start a new dip
+        currentDip = {
           dipNumber: dipNumber++,
-          baselineIndex: i,
-          startIndex: dipStartIndex,
-          endIndex: lastSessionIndex,
-          depth: dipDepth,
+          baselineIndex: activeBaseline.baselineNumber - 1,
+          startIndex: j,
+          endIndex: j,
+          depth: drop,
           baselineValue: baselineValue,
-          lowestValue: Math.min(...dipSessions.map(s => s.value)),
-          sessions: dipSessions,
-          notes: dipNotes,
-          type: dipAnalysis.type,
-          learningScore: dipAnalysis.learningScore,
-          matchedLearningKeywords: dipAnalysis.matchedLearningKeywords || [],
-          matchedConcernKeywords: dipAnalysis.matchedConcernKeywords || []
-        });
-        
-        // Mark these indices as used
-        for (let idx = dipStartIndex; idx <= lastSessionIndex; idx++) {
-          usedIndices.add(idx);
-        }
+          lowestValue: currentValue,
+          sessions: [session],
+          baseline: activeBaseline
+        };
+      } else {
+        // Continue existing dip
+        currentDip.endIndex = j;
+        currentDip.depth = Math.max(currentDip.depth, drop);
+        currentDip.lowestValue = Math.min(currentDip.lowestValue, currentValue);
+        currentDip.sessions.push(session);
       }
+    } else if (currentDip && currentValue >= baselineValue - 0.1) {
+      // Dip ended - rating returned to baseline level
+      const dipStartDate = sessions[currentDip.startIndex].date;
+      const dipEndDate = sessions[currentDip.endIndex].date;
+      const dipNotes = allSessionsWithNotes.filter(s => {
+        const sDate = s.date instanceof Date ? s.date : new Date(s.date);
+        return sDate >= dipStartDate && sDate <= dipEndDate;
+      }).flatMap(s => s.notes || []);
+      
+      const dipAnalysis = _spiralClassifyDipType_(dipNotes);
+      
+      dips.push({
+        dipNumber: currentDip.dipNumber,
+        baselineIndex: currentDip.baselineIndex,
+        startIndex: currentDip.startIndex,
+        endIndex: currentDip.endIndex,
+        depth: currentDip.depth,
+        baselineValue: currentDip.baselineValue,
+        lowestValue: currentDip.lowestValue,
+        sessions: currentDip.sessions,
+        notes: dipNotes,
+        type: dipAnalysis.type,
+        learningScore: dipAnalysis.learningScore,
+        matchedLearningKeywords: dipAnalysis.matchedLearningKeywords || [],
+        matchedConcernKeywords: dipAnalysis.matchedConcernKeywords || []
+      });
+      
+      // Mark these indices as used
+      for (let idx = currentDip.startIndex; idx <= currentDip.endIndex; idx++) {
+        usedIndices.add(idx);
+      }
+      
+      currentDip = null;
+    } else if (currentDip && currentValue < baselineValue) {
+      // Continue dip while below baseline
+      currentDip.endIndex = j;
+      currentDip.depth = Math.max(currentDip.depth, baselineValue - currentValue);
+      currentDip.lowestValue = Math.min(currentDip.lowestValue, currentValue);
+      currentDip.sessions.push(session);
+    } else if (currentDip && currentValue >= baselineValue) {
+      // Dip ended - rating above baseline
+      const dipStartDate = sessions[currentDip.startIndex].date;
+      const dipEndDate = sessions[currentDip.endIndex].date;
+      const dipNotes = allSessionsWithNotes.filter(s => {
+        const sDate = s.date instanceof Date ? s.date : new Date(s.date);
+        return sDate >= dipStartDate && sDate <= dipEndDate;
+      }).flatMap(s => s.notes || []);
+      
+      const dipAnalysis = _spiralClassifyDipType_(dipNotes);
+      
+      dips.push({
+        dipNumber: currentDip.dipNumber,
+        baselineIndex: currentDip.baselineIndex,
+        startIndex: currentDip.startIndex,
+        endIndex: currentDip.endIndex,
+        depth: currentDip.depth,
+        baselineValue: currentDip.baselineValue,
+        lowestValue: currentDip.lowestValue,
+        sessions: currentDip.sessions,
+        notes: dipNotes,
+        type: dipAnalysis.type,
+        learningScore: dipAnalysis.learningScore,
+        matchedLearningKeywords: dipAnalysis.matchedLearningKeywords || [],
+        matchedConcernKeywords: dipAnalysis.matchedConcernKeywords || []
+      });
+      
+      // Mark these indices as used
+      for (let idx = currentDip.startIndex; idx <= currentDip.endIndex; idx++) {
+        usedIndices.add(idx);
+      }
+      
+      currentDip = null;
+    }
+  }
+  
+  // Handle ongoing dip (dip that hasn't returned to baseline yet)
+  if (currentDip && currentDip.sessions.length >= 2) {
+    const lastSessionIndex = sessions.length - 1;
+    const dipStartDate = sessions[currentDip.startIndex].date;
+    const dipEndDate = sessions[lastSessionIndex].date;
+    const dipNotes = allSessionsWithNotes.filter(s => {
+      const sDate = s.date instanceof Date ? s.date : new Date(s.date);
+      return sDate >= dipStartDate && sDate <= dipEndDate;
+    }).flatMap(s => s.notes || []);
+    
+    const dipAnalysis = _spiralClassifyDipType_(dipNotes);
+    
+    dips.push({
+      dipNumber: currentDip.dipNumber,
+      baselineIndex: currentDip.baselineIndex,
+      startIndex: currentDip.startIndex,
+      endIndex: lastSessionIndex,
+      depth: currentDip.depth,
+      baselineValue: currentDip.baselineValue,
+      lowestValue: currentDip.lowestValue,
+      sessions: currentDip.sessions,
+      notes: dipNotes,
+      type: dipAnalysis.type,
+      learningScore: dipAnalysis.learningScore,
+      matchedLearningKeywords: dipAnalysis.matchedLearningKeywords || [],
+      matchedConcernKeywords: dipAnalysis.matchedConcernKeywords || []
+    });
+    
+    // Mark these indices as used
+    for (let idx = currentDip.startIndex; idx <= lastSessionIndex; idx++) {
+      usedIndices.add(idx);
     }
   }
   
