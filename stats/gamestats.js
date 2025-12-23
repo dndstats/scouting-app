@@ -1,6 +1,10 @@
 const GAME_STATS_INPUT_SHEET = 'shotmap';
 const GAME_STATS_INPUT_HEADERS = ['gameId', 'org', 'date', 'opponent', 'competition'];
 const GAME_STATS_CACHE_SECONDS = 300;
+const GAME_STATS_SUMMARY_ID = '__ALL__';
+const GAME_STATS_SUMMARY_LABEL = 'All Games — Peristeri BC vs Opponents';
+const GAME_STATS_DEFAULT_TEAM_NAME = 'Peristeri BC';
+const GAME_STATS_DEFAULT_TEAM_ABBR = 'PER';
 
 function getGameStatsFilters() {
   try {
@@ -20,9 +24,11 @@ function getGameStatsFilters() {
       const tB = b.date ? Date.parse(b.date) || 0 : 0;
       return tB - tA;
     });
+    const options = games.map(function(item){ return { gameId: item.gameId, label: item.label }; });
+    options.unshift({ gameId: GAME_STATS_SUMMARY_ID, label: GAME_STATS_SUMMARY_LABEL });
     return {
       ok: true,
-      games: games.map(function(item){ return { gameId: item.gameId, label: item.label }; }),
+      games: options,
     };
   } catch (err) {
     console.error('getGameStatsFilters error:', err);
@@ -34,11 +40,17 @@ function getGameStats(query) {
   try {
     const gameId = String(query && query.gameId || '').trim();
     if (!gameId) return { ok: false, error: 'Missing gameId.' };
+    if (gameId === GAME_STATS_SUMMARY_ID) {
+      return buildGameStatsSummary_(query);
+    }
 
+    // Extract org from query or look it up from game metadata
+    const org = String(query && query.org || '').trim();
+    
     const cacheKey = 'gamestats:' + gameId;
     let raw = _cacheGetJSON_ && _cacheGetJSON_(cacheKey);
     if (!raw) {
-      raw = fetchGameStatsData_(gameId);
+      raw = fetchGameStatsData_(gameId, org);
       if (_cachePutJSON_) _cachePutJSON_(cacheKey, raw, GAME_STATS_CACHE_SECONDS);
     }
 
@@ -49,31 +61,185 @@ function getGameStats(query) {
   }
 }
 
-function fetchGameStatsData_(gameId) {
+function fetchGameStatsData_(gameId, org) {
   const cleanId = String(gameId || '').trim();
   if (!cleanId) throw new Error('Missing gameId');
-  const url = 'https://fibalivestats.dcd.shared.geniussports.com/data/' + encodeURIComponent(cleanId) + '/data.json';
-  const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-  const code = resp.getResponseCode();
-  if (code < 200 || code >= 300) {
-    throw new Error('Request failed (' + code + '): ' + url);
+  
+  // Try smart endpoint discovery with multiple candidates
+  try {
+    return fetchGameStatsDataSmart_(cleanId, org);
+  } catch (err) {
+    // Fall back to original single endpoint approach
+    const url = 'https://fibalivestats.dcd.shared.geniussports.com/data/' + encodeURIComponent(cleanId) + '/data.json';
+    const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    const code = resp.getResponseCode();
+    if (code < 200 || code >= 300) {
+      throw new Error('Request failed (' + code + '): ' + url + ' | Original error: ' + err);
+    }
+    const text = resp.getContentText();
+    return text ? JSON.parse(text) : {};
   }
-  const text = resp.getContentText();
-  return text ? JSON.parse(text) : {};
+}
+
+function fetchGameStatsDataSmart_(gameId, org) {
+  const urls = generateCandidateUrls(gameId, org);
+  const successes = [];
+  let lastErr;
+
+  function rank(url) {
+    if (/\/data\.json$/i.test(url)) return 1;
+    if (/\/(pbp|playbyplay)\.json$/i.test(url)) return 2;
+    if (/\/game\.json$/i.test(url)) return 3;
+    if (/\/shots\.json$/i.test(url)) return 4;
+    return 10;
+  }
+
+  for (const url of urls) {
+    try {
+      const res = UrlFetchApp.fetch(url, {
+        muteHttpExceptions: true,
+        followRedirects: true,
+        headers: { 'Accept': 'application/json,text/html,*/*' }
+      });
+      const code = res.getResponseCode();
+      const body = res.getContentText();
+
+      if (code >= 200 && code < 300 && startsLikeJson(body)) {
+        successes.push({ url: url, jsonText: body });
+        continue;
+      }
+
+      const ct = String(res.getHeaders()['Content-Type'] || '').toLowerCase();
+      if (code >= 200 && code < 300 && (ct.includes('text/html') || body.startsWith('<'))) {
+        const discovered = discoverJsonFromHtml(body);
+        for (const ju of discovered) {
+          try {
+            const jr = UrlFetchApp.fetch(ju, { muteHttpExceptions:true, followRedirects:true, headers:{'Accept':'application/json,*/*'} });
+            const jcode = jr.getResponseCode();
+            const jtxt = jr.getContentText();
+            if (jcode >= 200 && jcode < 300 && startsLikeJson(jtxt)) successes.push({ url: ju, jsonText: jtxt });
+          } catch (inner) { lastErr = inner; }
+        }
+        
+        // NEW: Try to extract JSON data from embedded script tags (common in FIBA pages)
+        try {
+          // Look for JSON data in script tags: <script type="application/json">...</script>
+          const scriptMatches = body.match(/<script[^>]*type=["']application\/json["'][^>]*>(.*?)<\/script>/gis);
+          if (scriptMatches && scriptMatches.length > 0) {
+            for (let i = 0; i < scriptMatches.length; i++) {
+              const jsonMatch = scriptMatches[i].match(/>([^<]+)</);
+              if (jsonMatch && jsonMatch[1]) {
+                const jsonStr = jsonMatch[1].trim();
+                if (startsLikeJson(jsonStr)) {
+                  Logger.log('Found embedded JSON in script tag');
+                  successes.push({ url: url + ' (embedded)', jsonText: jsonStr });
+                }
+              }
+            }
+          }
+        } catch (e) {
+          Logger.log('Error parsing embedded JSON: ' + e);
+        }
+      }
+    } catch (e) { lastErr = e; }
+  }
+
+  if (successes.length) {
+    successes.sort((a,b)=> rank(a.url) - rank(b.url));
+    const best = successes[0];
+    Logger.log('Using endpoint: ' + best.url);
+    return JSON.parse(best.jsonText);
+  }
+
+  throw lastErr || new Error('No JSON endpoint found for gameId: ' + gameId);
+}
+
+function generateCandidateUrls(gameId, org) {
+  const urls = [];
+  
+  // NEW: FIBA Europe Cup support (fiba.basketball domain)
+  // Try FIBA-specific endpoints first if org contains 'EUROPE' or 'FIBACUP' or similar
+  if (org && typeof org === 'string' && /EUROPE|FIBACUP|FIBA/i.test(org)) {
+    urls.push(
+      'https://www.fiba.basketball/data/games/' + gameId + '.json',
+      'https://www.fiba.basketball/api/game/' + gameId + '/shots.json',
+      'https://www.fiba.basketball/api/game/' + gameId + '/data.json',
+      'https://live.fiba.com/api/game/' + gameId + '/shots.json',
+      'https://live.fiba.com/api/game/' + gameId + '/data.json'
+    );
+  }
+  
+  // Try org-based variants if org is provided
+  if (org) {
+    const orgVariants = [org, org.toUpperCase(), org.toLowerCase()];
+    for (const o of orgVariants) {
+      const base = 'https://fibalivestats.dcd.shared.geniussports.com/u/' + encodeURIComponent(o) + '/' + encodeURIComponent(gameId);
+      urls.push(
+        base + '/data.json',
+        base + '/shots.json',
+        base + '/pbp.json',
+        base + '/playbyplay.json',
+        base + '/game.json'
+      );
+    }
+  }
+
+  // Org-less family (prefer data.json, then others)
+  const base2 = 'https://fibalivestats.dcd.shared.geniussports.com/data/' + encodeURIComponent(gameId);
+  urls.push(
+    base2 + '/data.json',
+    base2 + '/shots.json',
+    base2 + '/pbp.json',
+    base2 + '/playbyplay.json',
+    base2 + '/game.json'
+  );
+
+  return urls;
+}
+
+function startsLikeJson(s) {
+  const t = String(s || '').trim();
+  return t.startsWith('{') || t.startsWith('[');
+}
+
+function discoverJsonFromHtml(html) {
+  const out = new Set();
+  
+  // Genius Sports patterns (existing)
+  const m1 = html.match(/\/u\/[A-Za-z0-9_-]+\/\d+\/(?:data|pbp|playbyplay|game|shots)\.json/gi) || [];
+  m1.forEach(rel => out.add('https://fibalivestats.dcd.shared.geniussports.com' + rel));
+  const m2 = html.match(/\/data\/\d+\/(?:data|pbp|playbyplay|game|shots)\.json/gi) || [];
+  m2.forEach(rel => out.add('https://fibalivestats.dcd.shared.geniussports.com' + rel));
+  
+  // FIBA Europe Cup patterns (NEW)
+  const m3 = html.match(/\/api\/game\/\d+\/(?:shots|data)\.json/gi) || [];
+  m3.forEach(function(rel) { 
+    if (rel.startsWith('/')) {
+      out.add('https://www.fiba.basketball' + rel);
+    }
+  });
+  const m4 = html.match(/\/data\/games\/\d+\.json/gi) || [];
+  m4.forEach(function(rel) {
+    if (rel.startsWith('/')) {
+      out.add('https://www.fiba.basketball' + rel);
+    }
+  });
+  
+  return Array.from(out);
 }
 
 function buildGameStatsPayload_(data, query, gameId) {
   const teams = [];
   const tmLookup = {};
 
-  const structuredTeams = [].concat(data?.teams || data?.Teams || []);
+  const structuredTeams = [].concat((data && data.teams) || (data && data.Teams) || []);
   if (structuredTeams.length) {
     structuredTeams.forEach(function(team) {
-      const id = String(team?.id || team?.teamId || team?.TeamID || team?.TeamId || team?.code || '').trim();
-      const name = String(team?.name || team?.Name || '').trim() || id;
-      const abbreviation = String(team?.abbreviation || team?.Abbreviation || team?.shortName || team?.ShortName || id).trim() || id;
-      const totals = normalizeTotals_(team?.totals || team?.Totals || {});
-      const playersRaw = [].concat(team?.players || team?.Players || []);
+      const id = String((team && (team.id || team.teamId || team.TeamID || team.TeamId || team.code)) || '').trim();
+      const name = String((team && (team.name || team.Name)) || '').trim() || id;
+      const abbreviation = String((team && (team.abbreviation || team.Abbreviation || team.shortName || team.ShortName || id)) || '').trim() || id;
+      const totals = normalizeTotals_((team && (team.totals || team.Totals)) || {});
+      const playersRaw = [].concat((team && (team.players || team.Players)) || []);
       teams.push({ id, name, abbreviation, totals, playersRaw, sourceKey: null, raw: team });
     });
   } else if (data && typeof data.tm === 'object' && !Array.isArray(data.tm)) {
@@ -107,7 +273,7 @@ function buildGameStatsPayload_(data, query, gameId) {
     });
   });
 
-  const pbpRaw = Array.isArray(data?.pbp) ? data.pbp.slice() : Array.isArray(data?.plays) ? data.plays.slice() : [];
+  const pbpRaw = Array.isArray(data && data.pbp) ? data.pbp.slice() : Array.isArray(data && data.plays) ? data.plays.slice() : [];
 
   const metrics = computeTeamMetrics_(teams, pbpRaw, tmLookup, data);
   const teamLookup = {};
@@ -127,7 +293,7 @@ function buildGameStatsPayload_(data, query, gameId) {
 
   return {
     ok: true,
-    game: normalizeGameMeta_(data?.game || data?.Game || {}, metrics.teams, gameId),
+    game: normalizeGameMeta_((data && (data.game || data.Game)) || {}, metrics.teams, gameId),
     filters: filters,
     teams: metrics.teams,
     players: filteredPlayers,
@@ -138,9 +304,9 @@ function buildGameStatsPayload_(data, query, gameId) {
 }
 
 function computeTeamMetrics_(teams, rawPlays, tmLookup, data) {
-  const periodLengthMinutes = Number(data?.periodLength || data?.periodLengthREGULAR || 10) || 10;
+  const periodLengthMinutes = Number((data && (data.periodLength || data.periodLengthREGULAR)) || 10) || 10;
   const periodLengthSeconds = periodLengthMinutes * 60;
-  const overtimeLengthSeconds = Number(data?.periodLengthOVERTIME || 5) * 60 || 300;
+  const overtimeLengthSeconds = Number((data && data.periodLengthOVERTIME) || 5) * 60 || 300;
 
   const teamIndex = {};
   teams.forEach(function(team){
@@ -158,14 +324,14 @@ function computeTeamMetrics_(teams, rawPlays, tmLookup, data) {
   });
 
   const sortedPlays = rawPlays.slice().sort(function(a, b){
-    return Number(a?.actionNumber || 0) - Number(b?.actionNumber || 0);
+    return Number((a && a.actionNumber) || 0) - Number((b && b.actionNumber) || 0);
   });
 
   sortedPlays.forEach(function(play){
     const teamId = resolveTeamIdFromPlay_(play, teamIndex, tmLookup);
     if (!teamId || !shotAttempts[teamId]) return;
-    const action = String(play?.actionType || play?.ActionType || '').toLowerCase();
-    const subtype = String(play?.subType || play?.SubType || '').toLowerCase();
+    const action = String((play && (play.actionType || play.ActionType)) || '').toLowerCase();
+    const subtype = String((play && (play.subType || play.SubType)) || '').toLowerCase();
     if (action === '3pt' || action === '3pt shot' || action === '3ptr') {
       shotAttempts[teamId].three += 1;
     } else if (action === '2pt' || action === '2pt shot' || action === '2ptr') {
@@ -199,11 +365,14 @@ function computeTeamMetrics_(teams, rawPlays, tmLookup, data) {
     const oppPoss = computePossessions_(opp.totals || {});
     const pace = (poss && oppPoss) ? (poss + oppPoss) / 2 : null;
     const offensiveRating = poss ? (totals.pts || 0) / poss * 100 : null;
-    const defensiveRating = oppPoss ? (opp.totals?.pts || 0) / oppPoss * 100 : null;
+    const oppPts = opp && opp.totals ? opp.totals.pts : 0;
+    const defensiveRating = oppPoss ? (oppPts || 0) / oppPoss * 100 : null;
     const netRating = (offensiveRating != null && defensiveRating != null) ? offensiveRating - defensiveRating : null;
     const efg = totals.fga ? (totals.fgm + 0.5 * (totals.tpm || 0)) / totals.fga : null;
     const tov = poss ? (totals.to || 0) / poss : null;
-    const orb = (totals.oreb + (opp.totals?.dreb || 0)) ? (totals.oreb || 0) / (totals.oreb + (opp.totals?.dreb || 0)) : null;
+    const oppDreb = opp && opp.totals ? opp.totals.dreb : 0;
+    const orbDen = (totals.oreb + (oppDreb || 0));
+    const orb = orbDen ? (totals.oreb || 0) / orbDen : null;
     const ftr = totals.fga ? (totals.fta || 0) / totals.fga : null;
 
     const shots = shotAttempts[team.id] || { paint: 0, mid: 0, three: 0, ft: totals.fta || 0 };
@@ -222,6 +391,14 @@ function computeTeamMetrics_(teams, rawPlays, tmLookup, data) {
         tov: tov,
         orb: orb,
         ftr: ftr,
+      },
+      shotAttempts: {
+        paint: shots.paint,
+        mid: shots.mid,
+        three: shots.three,
+        ft: shots.ft,
+        totalFloor: totalFloorAttempts,
+        total: totalAttempts,
       },
       shotProfile: totalAttempts ? {
         paint: totalAttempts ? shots.paint / totalAttempts : 0,
@@ -446,6 +623,420 @@ function buildInsights_(teams, players) {
   return insights;
 }
 
+function buildGameStatsSummary_(query) {
+  const rows = readGameRows_();
+  if (!rows.length) return { ok: false, error: 'No games available to summarise.' };
+  const orgName = determinePrimaryOrg_(rows) || 'Peristeri BC';
+  const primaryName = orgName || GAME_STATS_DEFAULT_TEAM_NAME;
+  const summary = {
+    orgName: primaryName,
+    our: initAggregateTeam_('peristeri', primaryName, GAME_STATS_DEFAULT_TEAM_ABBR),
+    opp: initAggregateTeam_('opponents', 'Opponents', 'OPP'),
+    games: [],
+    players: {
+      peristeri: Object.create(null),
+      opponents: Object.create(null),
+    },
+  };
+
+  rows.forEach(function(row, index){
+    try {
+      const raw = fetchGameStatsDataCached_(row.gameId, row.org);
+      const payload = buildGameStatsPayload_(raw || {}, {}, row.gameId);
+      const ourTeam = identifySummaryTeam_(payload.teams || [], row.org, summary.orgName);
+      const oppTeam = (payload.teams || []).find(function(team){ return team && team !== ourTeam; }) || (payload.teams && payload.teams[0]) || null;
+      if (!ourTeam || !oppTeam) return;
+
+      accumulateAggregateTeam_(summary.our, ourTeam, oppTeam);
+      accumulateAggregateTeam_(summary.opp, oppTeam, ourTeam);
+      if (ourTeam.name) {
+        summary.our.name = ourTeam.name;
+        summary.orgName = ourTeam.name;
+      }
+      if (ourTeam.abbreviation) {
+        summary.our.abbreviation = ourTeam.abbreviation;
+      }
+
+      summary.games.push({
+        label: buildSummaryTimelineLabel_(row, oppTeam, index),
+        ourPts: Number(ourTeam.totals?.pts || 0),
+        oppPts: Number(oppTeam.totals?.pts || 0),
+      });
+
+      (payload.allPlayers || []).forEach(function(player){
+        if (isPlayerOnTeam_(player, ourTeam)) {
+          accumulateSummaryPlayer_(summary.players.peristeri, player, summary.our);
+        } else {
+          accumulateSummaryPlayer_(summary.players.opponents, player, summary.opp);
+        }
+      });
+    } catch (err) {
+      console.error('Summary aggregation failed for game', row.gameId, err);
+    }
+  });
+
+  if (!summary.games.length || !summary.our.games) {
+    return { ok: false, error: 'Unable to compile season summary.' };
+  }
+
+  const aggregatedTeams = finalizeAggregateTeams_(summary);
+  const timeline = buildSummaryTimeline_(summary, aggregatedTeams);
+  const players = finalizeAggregatePlayers_(summary, aggregatedTeams);
+  const filters = buildFiltersPayload_(aggregatedTeams, players, timeline);
+  const insights = buildInsights_(aggregatedTeams, players);
+  const ourDisplayName = aggregatedTeams[0]?.name || summary.orgName || GAME_STATS_DEFAULT_TEAM_NAME;
+  const oppDisplayName = aggregatedTeams[1]?.name || 'Opponents';
+
+  return {
+    ok: true,
+    game: {
+      id: GAME_STATS_SUMMARY_ID,
+      title: ourDisplayName + ' vs ' + oppDisplayName + ' — All Games',
+      status: 'SUMMARY',
+      competition: '',
+      venue: '',
+      date: '',
+      periods: 4,
+    },
+    filters: filters,
+    teams: aggregatedTeams,
+    players: players,
+    allPlayers: players,
+    timeline: timeline,
+    insights: insights,
+  };
+}
+
+function fetchGameStatsDataCached_(gameId, org) {
+  const cacheKey = 'gamestats:' + gameId;
+  let raw = _cacheGetJSON_ && _cacheGetJSON_(cacheKey);
+  if (!raw) {
+    raw = fetchGameStatsData_(gameId, org);
+    if (_cachePutJSON_) _cachePutJSON_(cacheKey, raw, GAME_STATS_CACHE_SECONDS);
+  }
+  return raw || {};
+}
+
+function determinePrimaryOrg_(rows) {
+  let fallback = '';
+  for (var i = 0; i < rows.length; i++) {
+    const org = String(rows[i].org || '').trim();
+    if (!org) continue;
+    if (!fallback) fallback = org;
+    if (org.toLowerCase().indexOf('peristeri') >= 0) return org;
+  }
+  return fallback || GAME_STATS_DEFAULT_TEAM_NAME;
+}
+
+function identifySummaryTeam_(teams, orgName, fallbackName) {
+  if (!teams || !teams.length) return null;
+  const target = String(orgName || '').trim().toLowerCase();
+  const fallback = String(fallbackName || '').trim().toLowerCase();
+  let match = null;
+  teams.forEach(function(team){
+    if (match) return;
+    const name = String(team?.name || '').trim().toLowerCase();
+    const abbr = String(team?.abbreviation || '').trim().toLowerCase();
+    if (target && (name === target || abbr === target || name.indexOf(target) >= 0 || abbr.indexOf(target) >= 0)) {
+      match = team;
+      return;
+    }
+    if (!match && fallback && (name.indexOf(fallback) >= 0 || abbr.indexOf(fallback) >= 0)) {
+      match = team;
+      return;
+    }
+    if (!match && (name.indexOf('peristeri') >= 0 || abbr.indexOf('per') >= 0)) {
+      match = team;
+    }
+  });
+  return match || teams[0];
+}
+
+function initAggregateTeam_(id, name, abbreviation) {
+  return {
+    id: id,
+    name: name,
+    abbreviation: abbreviation,
+    games: 0,
+    totals: Object.create(null),
+    shotAttempts: { paint: 0, mid: 0, three: 0, ft: 0, totalFloor: 0, total: 0 },
+    minutes: 0,
+    sumPossessions: 0,
+    sumOpponentPossessions: 0,
+    sourceTeamIds: Object.create(null),
+  };
+}
+
+function accumulateAggregateTeam_(aggregate, team, opponent) {
+  if (!aggregate || !team) return;
+  aggregate.games += 1;
+  if (team.id) aggregate.sourceTeamIds[String(team.id)] = true;
+  aggregate.minutes += Number(team.minutes || 0) || 0;
+
+  const totals = team.totals || {};
+  Object.keys(totals).forEach(function(key){
+    const val = Number(totals[key]);
+    if (!isNaN(val)) {
+      aggregate.totals[key] = (aggregate.totals[key] || 0) + val;
+    }
+  });
+
+  const shots = team.metrics?.shotAttempts || {};
+  ['paint', 'mid', 'three', 'ft', 'totalFloor', 'total'].forEach(function(key){
+    const val = Number(shots[key] || 0);
+    if (!isNaN(val)) {
+      aggregate.shotAttempts[key] = (aggregate.shotAttempts[key] || 0) + val;
+    }
+  });
+
+  const poss = Number(team.metrics?.possessions);
+  if (!isNaN(poss)) {
+    aggregate.sumPossessions += poss;
+  } else {
+    aggregate.sumPossessions += computePossessions_(totals);
+  }
+
+  const oppPossMetric = Number(team.metrics?.opponentPossessions);
+  if (!isNaN(oppPossMetric)) {
+    aggregate.sumOpponentPossessions += oppPossMetric;
+  } else if (opponent && opponent.totals) {
+    aggregate.sumOpponentPossessions += computePossessions_(opponent.totals);
+  } else {
+    aggregate.sumOpponentPossessions += computePossessions_(totals);
+  }
+}
+
+function buildSummaryTimelineLabel_(row, opponentTeam, index) {
+  const parts = [];
+  const date = String(row?.date || '').trim();
+  if (date) parts.push(date);
+  const oppName = String(row?.opponent || opponentTeam?.name || opponentTeam?.abbreviation || '').trim();
+  if (oppName) parts.push('vs ' + oppName);
+  if (!parts.length) return 'Game ' + (index + 1);
+  return parts.join(' ');
+}
+
+function buildSummaryTimeline_(summary, aggregatedTeams) {
+  const labels = summary.games.map(function(game){ return game.label; });
+  const ourTeam = aggregatedTeams[0] || { id: 'peristeri', name: summary.orgName };
+  const oppTeam = aggregatedTeams[1] || { id: 'opponents', name: 'Opponents' };
+  const ourScores = summary.games.map(function(game){ return game.ourPts; });
+  const oppScores = summary.games.map(function(game){ return game.oppPts; });
+  return {
+    labels: labels,
+    series: [
+      { teamId: ourTeam.id, name: ourTeam.name, scores: ourScores },
+      { teamId: oppTeam.id, name: oppTeam.name, scores: oppScores },
+    ],
+  };
+}
+
+function accumulateSummaryPlayer_(bucket, player, aggregateTeam) {
+  if (!player || !aggregateTeam) return;
+  const stats = player.statistics || {};
+  const key = (player.id || player.name || Math.random().toString(36).slice(2)) + '|' + aggregateTeam.id;
+  if (!bucket[key]) {
+    bucket[key] = {
+      id: player.id || key,
+      name: player.name || 'Player',
+      teamId: aggregateTeam.id,
+      teamName: aggregateTeam.name,
+      teamAbbreviation: aggregateTeam.abbreviation,
+      stats: createEmptyStatLine_(),
+      games: 0,
+    };
+  }
+  const entry = bucket[key];
+  entry.games += 1;
+  entry.stats.minutes += parseMinutes_(stats.minutes || 0);
+  ['fgm','fga','tpm','tpa','ftm','fta','oreb','dreb','reb','ast','stl','blk','to','pf','pts','plusminus'].forEach(function(k){
+    const val = Number(stats[k] || 0);
+    if (!isNaN(val)) entry.stats[k] += val;
+  });
+}
+
+function finalizeAggregateTeams_(summary) {
+  const ourTeam = buildAggregateTeamObject_(summary.our, summary.opp);
+  const oppTeam = buildAggregateTeamObject_(summary.opp, summary.our);
+  return [ourTeam, oppTeam];
+}
+
+function buildAggregateTeamObject_(aggregate, opponentAggregate) {
+  const games = Math.max(aggregate.games, 1);
+  const totals = Object.assign({}, aggregate.totals);
+  const oppTotals = opponentAggregate ? opponentAggregate.totals : {};
+  const totalPoss = aggregate.sumPossessions;
+  const oppPoss = aggregate.sumOpponentPossessions;
+  const pace = games ? (aggregate.sumPossessions + aggregate.sumOpponentPossessions) / (2 * games) : null;
+  const offensiveRating = totalPoss ? (Number(totals.pts || 0) / totalPoss) * 100 : null;
+  const defensiveRating = oppPoss ? (Number(oppTotals?.pts || 0) / oppPoss) * 100 : null;
+  const netRating = (offensiveRating != null && defensiveRating != null) ? offensiveRating - defensiveRating : null;
+  const efg = totals.fga ? (Number(totals.fgm || 0) + 0.5 * Number(totals.tpm || 0)) / Number(totals.fga || 1) : null;
+  const tov = totalPoss ? Number(totals.to || 0) / totalPoss : null;
+  const orbDen = Number(totals.oreb || 0) + Number(oppTotals?.dreb || 0);
+  const orb = orbDen ? Number(totals.oreb || 0) / orbDen : null;
+  const ftr = totals.fga ? Number(totals.fta || 0) / Number(totals.fga || 1) : null;
+  const shots = aggregate.shotAttempts || {};
+  const totalAttempts = shots.total || (shots.paint + shots.mid + shots.three + shots.ft);
+  const shotProfile = totalAttempts ? {
+    paint: shots.paint / totalAttempts,
+    mid: shots.mid / totalAttempts,
+    three: shots.three / totalAttempts,
+    ft: shots.ft / totalAttempts,
+  } : {
+    paint: null,
+    mid: null,
+    three: null,
+    ft: null,
+  };
+  return {
+    id: aggregate.id,
+    name: aggregate.name,
+    abbreviation: aggregate.abbreviation,
+    totals: totals,
+    metrics: {
+      possessions: totalPoss,
+      opponentPossessions: oppPoss,
+      pace: pace,
+      offensiveRating: offensiveRating,
+      defensiveRating: defensiveRating,
+      netRating: netRating,
+      fourFactors: {
+        efg: efg,
+        tov: tov,
+        orb: orb,
+        ftr: ftr,
+      },
+      shotAttempts: shots,
+      shotProfile: shotProfile,
+    },
+    minutes: aggregate.minutes,
+    summary: {
+      games: aggregate.games,
+      sourceTeamIds: Object.keys(aggregate.sourceTeamIds),
+    },
+  };
+}
+
+function finalizeAggregatePlayers_(summary, aggregatedTeams) {
+  const teamLookup = {};
+  aggregatedTeams.forEach(function(team){ teamLookup[team.id] = team; });
+  const players = [];
+
+  Object.keys(summary.players).forEach(function(bucketKey){
+    const bucket = summary.players[bucketKey];
+    Object.keys(bucket).forEach(function(playerKey){
+      const entry = bucket[playerKey];
+      const team = teamLookup[entry.teamId] || aggregatedTeams[0];
+      const stats = entry.stats;
+      const usage = computeSummaryUsage_(stats, team);
+      const trueShooting = computeSummaryTrueShooting_(stats);
+      players.push({
+        id: entry.id,
+        name: entry.name,
+        teamId: entry.teamId,
+        teamName: entry.teamName,
+        teamAbbreviation: entry.teamAbbreviation,
+        statistics: {
+          minutes: formatMinutesString_(stats.minutes),
+          fgm: stats.fgm,
+          fga: stats.fga,
+          tpm: stats.tpm,
+          tpa: stats.tpa,
+          ftm: stats.ftm,
+          fta: stats.fta,
+          oreb: stats.oreb,
+          dreb: stats.dreb,
+          reb: stats.reb,
+          ast: stats.ast,
+          stl: stats.stl,
+          blk: stats.blk,
+          to: stats.to,
+          pf: stats.pf,
+          pts: stats.pts,
+          plusminus: stats.plusminus,
+        },
+        advanced: {
+          minutes: stats.minutes,
+          usage: usage,
+          trueShooting: trueShooting,
+        },
+      });
+    });
+  });
+
+  players.sort(function(a, b){
+    return (b.advanced.minutes || 0) - (a.advanced.minutes || 0);
+  });
+  return players;
+}
+
+function createEmptyStatLine_() {
+  return {
+    minutes: 0,
+    fgm: 0,
+    fga: 0,
+    tpm: 0,
+    tpa: 0,
+    ftm: 0,
+    fta: 0,
+    oreb: 0,
+    dreb: 0,
+    reb: 0,
+    ast: 0,
+    stl: 0,
+    blk: 0,
+    to: 0,
+    pf: 0,
+    pts: 0,
+    plusminus: 0,
+  };
+}
+
+function isPlayerOnTeam_(player, team) {
+  if (!player || !team) return false;
+  const playerTeamId = String(player.teamId || '').trim();
+  const teamId = String(team.id || '').trim();
+  if (playerTeamId && teamId && playerTeamId === teamId) return true;
+  const lower = function(str){ return String(str || '').trim().toLowerCase(); };
+  const playerName = lower(player.teamName);
+  const playerAbbr = lower(player.teamAbbreviation);
+  const teamName = lower(team.name);
+  const teamAbbr = lower(team.abbreviation);
+  if (teamName && playerName === teamName) return true;
+  if (teamAbbr && playerAbbr === teamAbbr) return true;
+  if (teamName && playerName.indexOf(teamName) >= 0) return true;
+  if (teamAbbr && playerAbbr.indexOf(teamAbbr) >= 0) return true;
+  if (teamName && (playerName.indexOf('peristeri') >= 0 || playerAbbr.indexOf('per') >= 0)) return true;
+  return false;
+}
+
+function computeSummaryUsage_(stats, team) {
+  if (!stats || !team) return null;
+  const playerMinutes = stats.minutes || 0;
+  const teamMinutes = team.minutes || (team.summary?.games ? team.summary.games * 200 : 0);
+  const teamTotals = team.totals || {};
+  const usageDenominator = Number(teamTotals.fga || 0) + 0.44 * Number(teamTotals.fta || 0) + Number(teamTotals.to || 0);
+  const usageNumerator = Number(stats.fga || 0) + 0.44 * Number(stats.fta || 0) + Number(stats.to || 0);
+  if (!playerMinutes || !teamMinutes || !usageDenominator) return null;
+  return 100 * usageNumerator * (teamMinutes / 5) / (playerMinutes * usageDenominator);
+}
+
+function computeSummaryTrueShooting_(stats) {
+  if (!stats) return null;
+  const denom = Number(stats.fga || 0) + 0.44 * Number(stats.fta || 0);
+  if (!denom) return null;
+  return Number(stats.pts || 0) / (2 * denom);
+}
+
+function formatMinutesString_(minutes) {
+  if (!minutes) return '0:00';
+  const totalSeconds = Math.round(Number(minutes || 0) * 60);
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return mins + ':' + String(secs).padStart(2, '0');
+}
+
 function normalizeTotals_(totals) {
   if (!totals || typeof totals !== 'object') return {};
   const map = {};
@@ -658,4 +1249,169 @@ function ensureGameSheet_() {
     sh.getRange(1, 1, 1, GAME_STATS_INPUT_HEADERS.length).setValues([GAME_STATS_INPUT_HEADERS]);
   }
   return sh;
+}
+
+/* ===================== Shot & Assist Extraction Functions ===================== */
+
+/**
+ * Extract shot locations and assists from FIBALivestats data structure
+ * Returns array of shot objects with location, assist data
+ */
+function extractShotsFromData_(data) {
+  const shots = [];
+  
+  if (!data || typeof data !== 'object') return shots;
+  
+  // Try Genius Sports tm structure
+  if (data.tm && (data.tm['1'] || data.tm['2'])) {
+    ['1', '2'].forEach(function(key){
+      const team = data.tm[key];
+      if (!team) return;
+      
+      // Get shots array - try various field names
+      const teamShots = team.shot || team.shots || team.sh || team.Shot || team.SHOTS || [];
+      if (!Array.isArray(teamShots)) return;
+      
+      teamShots.forEach(function(shot){
+        if (!shot || typeof shot !== 'object') return;
+        
+        const x = Number(shot.x || shot.cx || shot.posX || shot.coordX || 0);
+        const y = Number(shot.y || shot.cy || shot.posY || shot.coordY || 0);
+        
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        
+        const period = Number(shot.period || shot.per || shot.Period || 0);
+        const clock = String(shot.clock || shot.gameClock || shot.time || shot.t || '');
+        const made = normalizeMadeFromShot(shot);
+        const type = determineShotType(shot);
+        const playerId = String(shot.playerId || shot.pno || shot.pid || shot.player_id || '');
+        const player = String(shot.player || shot.playerName || shot.name || '');
+        
+        // Assist information
+        const assistData = extractAssistInfo(shot);
+        
+        shots.push({
+          x: x,
+          y: y,
+          period: period,
+          clock: clock,
+          made: made,
+          type: type,
+          playerId: playerId,
+          player: player,
+          assist: assistData.assist,
+          assistBy: assistData.assistBy,
+          assistPlayerId: assistData.assistPlayerId
+        });
+      });
+    });
+  }
+  
+  // Try flat array structure
+  if (Array.isArray(data.shots)) {
+    data.shots.forEach(function(shot){
+      if (!shot || typeof shot !== 'object') return;
+      
+      const x = Number(shot.x || 0);
+      const y = Number(shot.y || 0);
+      
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      
+      const period = Number(shot.period || 0);
+      const clock = String(shot.clock || '');
+      const made = normalizeMadeFromShot(shot);
+      const type = determineShotType(shot);
+      const playerId = String(shot.playerId || '');
+      const player = String(shot.player || shot.playerName || '');
+      const assistData = extractAssistInfo(shot);
+      
+      shots.push({
+        x: x,
+        y: y,
+        period: period,
+        clock: clock,
+        made: made,
+        type: type,
+        playerId: playerId,
+        player: player,
+        assist: assistData.assist,
+        assistBy: assistData.assistBy,
+        assistPlayerId: assistData.assistPlayerId
+      });
+    });
+  }
+  
+  return shots;
+}
+
+/**
+ * Extract assist information from shot object
+ */
+function extractAssistInfo(shot) {
+  if (!shot || typeof shot !== 'object') return { assist: 0, assistBy: '', assistPlayerId: '' };
+  
+  const assistPlayerId = String(shot.assistPlayerId || shot.assistId || shot.assist_player_id || shot.passerId || '');
+  const assistBy = String(shot.assistPlayer || shot.assistName || shot.assist_name || shot.passer || '');
+  const hasAssist = !!(shot.assist || shot.assisted || shot.ast || assistPlayerId || assistBy);
+  
+  return {
+    assist: hasAssist ? 1 : 0,
+    assistBy: assistBy,
+    assistPlayerId: assistPlayerId
+  };
+}
+
+/**
+ * Normalize made/miss status from shot object
+ */
+function normalizeMadeFromShot(shot) {
+  if (!shot || typeof shot !== 'object') return 0;
+  
+  // Try various fields that indicate made status
+  const made = shot.made || shot.isMade || shot.success || shot.isSuccess || shot.result;
+  if (made === 1 || made === true) return 1;
+  if (made === 0 || made === false) return 0;
+  
+  const str = String(shot.type || shot.actionType || shot.eventType || '').toLowerCase();
+  if (/made|success|good|hit|scores/i.test(str)) return 1;
+  if (/miss|failed|no/i.test(str)) return 0;
+  
+  return 0;
+}
+
+/**
+ * Determine shot type (2pt or 3pt) from shot object
+ */
+function determineShotType(shot) {
+  if (!shot || typeof shot !== 'object') return '2pt';
+  
+  const actionType = String(shot.actionType || shot.type || shot.eventType || '').toLowerCase();
+  const points = Number(shot.points || shot.pt || shot.value || shot.shotValue || 0);
+  
+  if (points === 3) return '3pt';
+  if (points === 2) return '2pt';
+  if (/3pt|three|triple|3-?pointer/i.test(actionType)) return '3pt';
+  if (/2pt|two/i.test(actionType)) return '2pt';
+  
+  return '2pt';
+}
+
+/**
+ * Get shots data for a specific game
+ */
+function getShotsData(gameId, org) {
+  try {
+    const raw = fetchGameStatsData_(gameId, org);
+    const shots = extractShotsFromData_(raw);
+    return {
+      ok: true,
+      shots: shots,
+      count: shots.length,
+      made: shots.filter(function(s) { return s.made === 1; }).length,
+      attempted: shots.length
+    };
+  } catch (err) {
+    console.error('getShotsData error:', err);
+    return { ok: false, error: String(err), shots: [] };
+  }
 }
