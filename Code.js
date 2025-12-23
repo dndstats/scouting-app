@@ -10492,8 +10492,8 @@ function _spiralDetectDips_(sessions, baselines, allSessionsWithNotes) {
     
     const baselineValue = activeBaseline.baselineValue;
     const currentValue = session.value;
-    const drop = baselineValue - currentValue;
-    
+      const drop = baselineValue - currentValue;
+      
     // Check if we're starting a new dip (drop >= 0.3 below baseline)
     if (drop >= 0.3) {
       if (!currentDip) {
@@ -10518,12 +10518,24 @@ function _spiralDetectDips_(sessions, baselines, allSessionsWithNotes) {
       }
     } else if (currentDip && currentValue >= baselineValue - 0.1) {
       // Dip ended - rating returned to baseline level
-      const dipStartDate = sessions[currentDip.startIndex].date;
-      const dipEndDate = sessions[currentDip.endIndex].date;
-      const dipNotes = allSessionsWithNotes.filter(s => {
-        const sDate = s.date instanceof Date ? s.date : new Date(s.date);
-        return sDate >= dipStartDate && sDate <= dipEndDate;
-      }).flatMap(s => s.notes || []);
+      // Collect notes directly from the dip sessions (they already have notes attached)
+      const dipNotes = currentDip.sessions.flatMap(s => s.notes || []);
+      // Also try to get notes from allSessionsWithNotes for the date range as fallback
+      if (dipNotes.length === 0) {
+        const dipStartDateRaw = sessions[currentDip.startIndex].date;
+        const dipEndDateRaw = sessions[currentDip.endIndex].date;
+        const dipStartDate = dipStartDateRaw instanceof Date ? dipStartDateRaw : (typeof dipStartDateRaw === 'string' ? new Date(dipStartDateRaw) : dipStartDateRaw);
+        const dipEndDate = dipEndDateRaw instanceof Date ? dipEndDateRaw : (typeof dipEndDateRaw === 'string' ? new Date(dipEndDateRaw) : dipEndDateRaw);
+        const fallbackNotes = allSessionsWithNotes.filter(s => {
+          if (!s.date) return false;
+          const sDate = s.date instanceof Date ? s.date : (typeof s.date === 'string' ? new Date(s.date) : s.date);
+          const sDateISO = s.dateISO ? (s.dateISO instanceof Date ? s.dateISO : (typeof s.dateISO === 'string' ? new Date(s.dateISO) : s.dateISO)) : null;
+          const dateToCompare = sDateISO && !isNaN(sDateISO.getTime()) ? sDateISO : sDate;
+          if (isNaN(dateToCompare.getTime())) return false;
+          return dateToCompare >= dipStartDate && dateToCompare <= dipEndDate;
+        }).flatMap(s => s.notes || []);
+        dipNotes.push(...fallbackNotes);
+      }
       
       const dipAnalysis = _spiralClassifyDipType_(dipNotes);
       
@@ -10557,12 +10569,24 @@ function _spiralDetectDips_(sessions, baselines, allSessionsWithNotes) {
       currentDip.sessions.push(session);
     } else if (currentDip && currentValue >= baselineValue) {
       // Dip ended - rating above baseline
-      const dipStartDate = sessions[currentDip.startIndex].date;
-      const dipEndDate = sessions[currentDip.endIndex].date;
-      const dipNotes = allSessionsWithNotes.filter(s => {
-        const sDate = s.date instanceof Date ? s.date : new Date(s.date);
-        return sDate >= dipStartDate && sDate <= dipEndDate;
-      }).flatMap(s => s.notes || []);
+      // Collect notes directly from the dip sessions (they already have notes attached)
+      const dipNotes = currentDip.sessions.flatMap(s => s.notes || []);
+      // Also try to get notes from allSessionsWithNotes for the date range as fallback
+      if (dipNotes.length === 0) {
+        const dipStartDateRaw = sessions[currentDip.startIndex].date;
+        const dipEndDateRaw = sessions[currentDip.endIndex].date;
+        const dipStartDate = dipStartDateRaw instanceof Date ? dipStartDateRaw : (typeof dipStartDateRaw === 'string' ? new Date(dipStartDateRaw) : dipStartDateRaw);
+        const dipEndDate = dipEndDateRaw instanceof Date ? dipEndDateRaw : (typeof dipEndDateRaw === 'string' ? new Date(dipEndDateRaw) : dipEndDateRaw);
+        const fallbackNotes = allSessionsWithNotes.filter(s => {
+          if (!s.date) return false;
+          const sDate = s.date instanceof Date ? s.date : (typeof s.date === 'string' ? new Date(s.date) : s.date);
+          const sDateISO = s.dateISO ? (s.dateISO instanceof Date ? s.dateISO : (typeof s.dateISO === 'string' ? new Date(s.dateISO) : s.dateISO)) : null;
+          const dateToCompare = sDateISO && !isNaN(sDateISO.getTime()) ? sDateISO : sDate;
+          if (isNaN(dateToCompare.getTime())) return false;
+          return dateToCompare >= dipStartDate && dateToCompare <= dipEndDate;
+        }).flatMap(s => s.notes || []);
+        dipNotes.push(...fallbackNotes);
+      }
       
       const dipAnalysis = _spiralClassifyDipType_(dipNotes);
       
@@ -10594,16 +10618,28 @@ function _spiralDetectDips_(sessions, baselines, allSessionsWithNotes) {
   // Handle ongoing dip (dip that hasn't returned to baseline yet)
   if (currentDip && currentDip.sessions.length >= 2) {
     const lastSessionIndex = sessions.length - 1;
-    const dipStartDate = sessions[currentDip.startIndex].date;
-    const dipEndDate = sessions[lastSessionIndex].date;
-    const dipNotes = allSessionsWithNotes.filter(s => {
-      const sDate = s.date instanceof Date ? s.date : new Date(s.date);
-      return sDate >= dipStartDate && sDate <= dipEndDate;
-    }).flatMap(s => s.notes || []);
-    
-    const dipAnalysis = _spiralClassifyDipType_(dipNotes);
-    
-    dips.push({
+    // Collect notes directly from the dip sessions (they already have notes attached)
+    const dipNotes = currentDip.sessions.flatMap(s => s.notes || []);
+    // Also try to get notes from allSessionsWithNotes for the date range as fallback
+    if (dipNotes.length === 0) {
+      const dipStartDateRaw = sessions[currentDip.startIndex].date;
+      const dipEndDateRaw = sessions[lastSessionIndex].date;
+      const dipStartDate = dipStartDateRaw instanceof Date ? dipStartDateRaw : (typeof dipStartDateRaw === 'string' ? new Date(dipStartDateRaw) : dipStartDateRaw);
+      const dipEndDate = dipEndDateRaw instanceof Date ? dipEndDateRaw : (typeof dipEndDateRaw === 'string' ? new Date(dipEndDateRaw) : dipEndDateRaw);
+      const fallbackNotes = allSessionsWithNotes.filter(s => {
+        if (!s.date) return false;
+        const sDate = s.date instanceof Date ? s.date : (typeof s.date === 'string' ? new Date(s.date) : s.date);
+        const sDateISO = s.dateISO ? (s.dateISO instanceof Date ? s.dateISO : (typeof s.dateISO === 'string' ? new Date(s.dateISO) : s.dateISO)) : null;
+        const dateToCompare = sDateISO && !isNaN(sDateISO.getTime()) ? sDateISO : sDate;
+        if (isNaN(dateToCompare.getTime())) return false;
+        return dateToCompare >= dipStartDate && dateToCompare <= dipEndDate;
+      }).flatMap(s => s.notes || []);
+      dipNotes.push(...fallbackNotes);
+    }
+        
+        const dipAnalysis = _spiralClassifyDipType_(dipNotes);
+        
+        dips.push({
       dipNumber: currentDip.dipNumber,
       baselineIndex: currentDip.baselineIndex,
       startIndex: currentDip.startIndex,
@@ -10612,13 +10648,13 @@ function _spiralDetectDips_(sessions, baselines, allSessionsWithNotes) {
       baselineValue: currentDip.baselineValue,
       lowestValue: currentDip.lowestValue,
       sessions: currentDip.sessions,
-      notes: dipNotes,
-      type: dipAnalysis.type,
-      learningScore: dipAnalysis.learningScore,
-      matchedLearningKeywords: dipAnalysis.matchedLearningKeywords || [],
-      matchedConcernKeywords: dipAnalysis.matchedConcernKeywords || []
-    });
-    
+          notes: dipNotes,
+          type: dipAnalysis.type,
+          learningScore: dipAnalysis.learningScore,
+          matchedLearningKeywords: dipAnalysis.matchedLearningKeywords || [],
+          matchedConcernKeywords: dipAnalysis.matchedConcernKeywords || []
+        });
+        
     // Mark these indices as used
     for (let idx = currentDip.startIndex; idx <= lastSessionIndex; idx++) {
       usedIndices.add(idx);
