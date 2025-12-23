@@ -10462,6 +10462,7 @@ function _spiralClassifyDipType_(notes) {
 function _spiralDetectDips_(sessions, baselines, allSessionsWithNotes) {
   const dips = [];
   let dipNumber = 1;
+  const usedIndices = new Set(); // Track which session indices are already in a dip to avoid overlaps
   
   for (let i = 0; i < baselines.length; i++) {
     const baseline = baselines[i];
@@ -10474,11 +10475,52 @@ function _spiralDetectDips_(sessions, baselines, allSessionsWithNotes) {
     let dipEnded = false;
     
     for (let j = baselineEndIndex + 1; j < sessions.length; j++) {
+      // Skip if this session is already part of another dip
+      if (usedIndices.has(j)) {
+        // If we were tracking a dip and hit an overlap, end the dip at previous session
+        if (dipStartIndex !== null && dipSessions.length > 0) {
+          const prevIndex = j - 1;
+          if (prevIndex >= dipStartIndex) {
+            const dipStartDate = sessions[dipStartIndex].date;
+            const dipEndDate = sessions[prevIndex].date;
+            const dipNotes = allSessionsWithNotes.filter(s => {
+              const sDate = s.date instanceof Date ? s.date : new Date(s.date);
+              return sDate >= dipStartDate && sDate <= dipEndDate;
+            }).flatMap(s => s.notes || []);
+            
+            const dipAnalysis = _spiralClassifyDipType_(dipNotes);
+            
+            dips.push({
+              dipNumber: dipNumber++,
+              baselineIndex: i,
+              startIndex: dipStartIndex,
+              endIndex: prevIndex,
+              depth: dipDepth,
+              baselineValue: baselineValue,
+              lowestValue: Math.min(...dipSessions.map(s => s.value)),
+              sessions: dipSessions,
+              notes: dipNotes,
+              type: dipAnalysis.type,
+              learningScore: dipAnalysis.learningScore,
+              matchedLearningKeywords: dipAnalysis.matchedLearningKeywords || [],
+              matchedConcernKeywords: dipAnalysis.matchedConcernKeywords || []
+            });
+            
+            // Mark these indices as used
+            for (let idx = dipStartIndex; idx <= prevIndex; idx++) {
+              usedIndices.add(idx);
+            }
+          }
+          dipEnded = true;
+        }
+        continue;
+      }
+      
       const currentValue = sessions[j].value;
       const drop = baselineValue - currentValue;
       
-      // Dip starts when rating drops 0.2+ below baseline
-      if (drop >= 0.2 && dipStartIndex === null) {
+      // Dip starts when rating drops 0.3+ below baseline (increased threshold to avoid false positives)
+      if (drop >= 0.3 && dipStartIndex === null) {
         dipStartIndex = j;
         dipDepth = drop;
         dipSessions = [sessions[j]];
@@ -10516,17 +10558,32 @@ function _spiralDetectDips_(sessions, baselines, allSessionsWithNotes) {
           matchedConcernKeywords: dipAnalysis.matchedConcernKeywords || []
         });
         
+        // Mark these indices as used
+        for (let idx = dipStartIndex; idx <= j; idx++) {
+          usedIndices.add(idx);
+        }
+        
         dipEnded = true;
         break;
       }
     }
     
-    // Handle ongoing dip (dip that hasn't returned to baseline yet)
-    if (dipStartIndex !== null && !dipEnded && dipSessions.length > 0) {
-      // Check if this is still an active dip (last session is still below baseline)
+    // Handle ongoing dip (dip that hasn't returned to baseline yet) - only if no completed dip was found and it's the last baseline
+    if (dipStartIndex !== null && !dipEnded && dipSessions.length >= 2 && i === baselines.length - 1) {
+      // Only check for ongoing dips on the most recent baseline to avoid duplicates
       const lastSessionIndex = sessions.length - 1;
       const lastSession = sessions[lastSessionIndex];
-      if (lastSession && lastSession.value < baselineValue) {
+      
+      // Check if any of the sessions in this potential dip are already used
+      let hasOverlap = false;
+      for (let idx = dipStartIndex; idx <= lastSessionIndex; idx++) {
+        if (usedIndices.has(idx)) {
+          hasOverlap = true;
+          break;
+        }
+      }
+      
+      if (lastSession && lastSession.value < baselineValue && !hasOverlap) {
         // Get notes during dip period (from start to now)
         const dipStartDate = sessions[dipStartIndex].date;
         const dipEndDate = sessions[lastSessionIndex].date;
@@ -10552,6 +10609,11 @@ function _spiralDetectDips_(sessions, baselines, allSessionsWithNotes) {
           matchedLearningKeywords: dipAnalysis.matchedLearningKeywords || [],
           matchedConcernKeywords: dipAnalysis.matchedConcernKeywords || []
         });
+        
+        // Mark these indices as used
+        for (let idx = dipStartIndex; idx <= lastSessionIndex; idx++) {
+          usedIndices.add(idx);
+        }
       }
     }
   }
