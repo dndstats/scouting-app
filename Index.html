@@ -4243,6 +4243,17 @@ body.sidebar-enabled.sidebar-collapsed .tabs{
         </div>
       </div>
     </div>
+    
+    <!-- Prediction Validation Panel -->
+    <div class="card" style="margin-top:24px; padding:16px; border:1px solid var(--border); border-radius:12px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+        <div class="sectionTitle" style="margin:0;">🔮 Predictions & Accuracy</div>
+        <button class="btn btn-small" onclick="loadPredictions()" style="font-size:12px;">Refresh</button>
+      </div>
+      <div id="predictionsPanel">
+        <div class="muted" style="text-align:center; padding:20px;">Loading predictions...</div>
+      </div>
+    </div>
   </div>
 
   <!-- Detailed View (hidden by default, shown when player clicked) -->
@@ -6803,6 +6814,8 @@ window.tabLoaders.spiralfeedback = function() {
       teamSummary.innerHTML.trim().length > 0;
     if (hasContent) {
       console.log('[tabLoaders.spiralfeedback] Dashboard already loaded, skipping reload');
+      // Still load predictions (they update independently)
+      loadPredictions();
       return;
     }
   }
@@ -6813,7 +6826,125 @@ window.tabLoaders.spiralfeedback = function() {
   } else {
     console.warn('[tabLoaders.spiralfeedback] loadSpiralDashboard function not found');
   }
+  
+  // Load predictions
+  loadPredictions();
 };
+
+// Prediction Validation Functions
+function loadPredictions() {
+  const panel = document.getElementById('predictionsPanel');
+  if (!panel) return;
+  
+  panel.innerHTML = '<div class="muted" style="text-align:center; padding:20px;">Loading predictions...</div>';
+  
+  // Load active predictions and accuracy in parallel
+  Promise.all([
+    new Promise((resolve) => {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(() => resolve({ ok: false, predictions: [] }))
+        .getActivePredictions();
+    }),
+    new Promise((resolve) => {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(() => resolve({ ok: false }))
+        .getPredictionAccuracy();
+    })
+  ]).then(([predictionsData, accuracyData]) => {
+    renderPredictionsPanel(predictionsData, accuracyData);
+  });
+}
+
+function renderPredictionsPanel(predictionsData, accuracyData) {
+  const panel = document.getElementById('predictionsPanel');
+  if (!panel) return;
+  
+  let html = '';
+  
+  // Accuracy Summary
+  if (accuracyData && accuracyData.ok && accuracyData.total > 0) {
+    const overallAcc = accuracyData.overallAccuracy;
+    const accPercent = overallAcc != null ? (overallAcc * 100).toFixed(0) : '—';
+    const accColor = overallAcc != null && overallAcc >= 0.7 ? '#2ecc71' : (overallAcc != null && overallAcc >= 0.5 ? '#ffb020' : '#ff5a5f');
+    
+    html += '<div style="margin-bottom:20px; padding:12px; background:rgba(74,168,255,0.1); border-radius:8px; border-left:3px solid #4aa8ff;">';
+    html += '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">';
+    html += '<strong style="color:#4aa8ff; font-size:14px;">📊 System Accuracy</strong>';
+    html += '<span style="font-size:18px; font-weight:600; color:' + accColor + ';">' + accPercent + '%</span>';
+    html += '</div>';
+    html += '<div style="font-size:12px; color:#9aa5be;">Based on ' + accuracyData.total + ' validated predictions</div>';
+    
+    // Accuracy by type
+    if (accuracyData.byType && Object.keys(accuracyData.byType).length > 0) {
+      html += '<div style="margin-top:12px; padding-top:12px; border-top:1px solid rgba(74,168,255,0.2);">';
+      Object.entries(accuracyData.byType).forEach(([type, data]) => {
+        const typeLabel = type === 'dip' ? 'Dip Predictions' : (type === 'recovery' ? 'Recovery Predictions' : type);
+        const typeAcc = data.average != null ? (data.average * 100).toFixed(0) : '—';
+        const typeColor = data.average != null && data.average >= 0.7 ? '#2ecc71' : (data.average != null && data.average >= 0.5 ? '#ffb020' : '#ff5a5f');
+        html += '<div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">';
+        html += '<span style="color:#9aa5be;">' + typeLabel + ':</span>';
+        html += '<span style="color:' + typeColor + '; font-weight:600;">' + typeAcc + '%</span>';
+        html += '<span style="color:#79839a; margin-left:8px;">(' + data.total + ')</span>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+    
+    html += '</div>';
+  } else {
+    html += '<div style="margin-bottom:20px; padding:12px; background:rgba(74,168,255,0.1); border-radius:8px; border-left:3px solid #4aa8ff;">';
+    html += '<div style="color:#9aa5be; font-size:12px; text-align:center;">No predictions validated yet. System will learn as predictions are made and outcomes occur.</div>';
+    html += '</div>';
+  }
+  
+  // Active Predictions
+  const predictions = (predictionsData && predictionsData.ok) ? predictionsData.predictions || [] : [];
+  
+  if (predictions.length > 0) {
+    html += '<div style="margin-bottom:12px;">';
+    html += '<strong style="color:#e9edf6; font-size:14px; display:block; margin-bottom:12px;">🔮 Active Predictions (' + predictions.length + ')</strong>';
+    
+    predictions.forEach(pred => {
+      const predDate = pred.prediction && pred.prediction.expectedDate 
+        ? new Date(pred.prediction.expectedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        : 'Unknown';
+      const confidence = pred.prediction && pred.prediction.confidence 
+        ? (pred.prediction.confidence * 100).toFixed(0) 
+        : '—';
+      const confColor = pred.prediction && pred.prediction.confidence >= 0.7 ? '#2ecc71' : (pred.prediction && pred.prediction.confidence >= 0.5 ? '#ffb020' : '#ff5a5f');
+      const typeLabel = pred.type === 'dip' ? 'Dip' : (pred.type === 'recovery' ? 'Recovery' : pred.type);
+      const targetLabel = pred.target === 'team' ? 'Team' : (pred.targetId || 'Player');
+      const reasoning = pred.prediction && pred.prediction.reasoning ? pred.prediction.reasoning : 'Based on historical patterns';
+      
+      html += '<div style="margin-bottom:12px; padding:12px; background:rgba(155,89,182,0.1); border-radius:8px; border-left:3px solid #9b59b6;">';
+      html += '<div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:8px;">';
+      html += '<div>';
+      html += '<strong style="color:#9b59b6; font-size:13px;">' + typeLabel + ' Prediction</strong>';
+      html += '<div style="font-size:11px; color:#9aa5be; margin-top:4px;">' + targetLabel + ' • Expected: ' + predDate + '</div>';
+      html += '</div>';
+      html += '<div style="text-align:right;">';
+      html += '<div style="font-size:12px; color:' + confColor + '; font-weight:600;">' + confidence + '%</div>';
+      html += '<div style="font-size:10px; color:#79839a;">confidence</div>';
+      html += '</div>';
+      html += '</div>';
+      html += '<div style="font-size:11px; color:#9aa5be; margin-top:6px; padding-left:4px;">' + escapeHtml(reasoning) + '</div>';
+      html += '</div>';
+    });
+    
+    html += '</div>';
+  } else {
+    html += '<div style="padding:12px; background:rgba(155,89,182,0.1); border-radius:8px; border-left:3px solid #9b59b6;">';
+    html += '<div style="color:#9aa5be; font-size:12px; text-align:center;">No active predictions. Predictions will appear here when the system forecasts future performance.</div>';
+    html += '</div>';
+  }
+  
+  panel.innerHTML = html;
+}
+
+// Make loadPredictions available globally
+window.loadPredictions = loadPredictions;
 
 (function() {
   'use strict';

@@ -12664,6 +12664,14 @@ function getAllSpiralAnalysis() {
       teamSessions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     }
     
+    // Validate pending predictions (non-blocking, runs in background)
+    try {
+      validatePredictions(); // This will check and validate old predictions
+    } catch (e) {
+      Logger.log('Error validating predictions (non-critical): ' + String(e));
+      // Don't fail the whole function if validation fails
+    }
+    
     // Run spiral analysis on team average data
     let teamAnalysis = null;
     if (teamSessions.length >= 3) {
@@ -12743,6 +12751,101 @@ function getAllSpiralAnalysis() {
           currentPhase: teamCurrentPhase,
           trajectory: _spiralCalculateTrajectory_(teamSessions, teamBaselines, teamDips, teamRecoveries, teamCycles)
         };
+        
+        // Store predictions for validation (if trajectory has cycle prediction)
+        if (teamAnalysis.trajectory && teamAnalysis.trajectory.cyclePrediction) {
+          try {
+            const cyclePred = teamAnalysis.trajectory.cyclePrediction;
+            const lastSession = teamSessions[teamSessions.length - 1];
+            const lastSessionDate = lastSession ? new Date(lastSession.date) : new Date();
+            
+            // Calculate average days between sessions for more accurate date prediction
+            let avgDaysBetweenSessions = 7; // Default to weekly
+            if (teamSessions.length >= 2) {
+              const dateDiffs = [];
+              for (let i = 1; i < Math.min(teamSessions.length, 10); i++) {
+                const date1 = new Date(teamSessions[i - 1].date);
+                const date2 = new Date(teamSessions[i].date);
+                const diff = (date2 - date1) / (1000 * 60 * 60 * 24);
+                if (diff > 0 && diff < 30) dateDiffs.push(diff); // Reasonable range
+              }
+              if (dateDiffs.length > 0) {
+                avgDaysBetweenSessions = dateDiffs.reduce((a, b) => a + b, 0) / dateDiffs.length;
+              }
+            }
+            
+            // Store dip prediction if available
+            if (cyclePred.dip) {
+              const dip = cyclePred.dip;
+              // Calculate expected date based on actual session frequency
+              const sessionsUntilDip = dip.startSession - teamSessions.length;
+              const expectedDate = new Date(lastSessionDate);
+              expectedDate.setDate(expectedDate.getDate() + (sessionsUntilDip * avgDaysBetweenSessions));
+              
+              // Calculate confidence based on pattern matches
+              const similarCycles = teamCycles.filter(c => c.type === 'Line2').length;
+              const confidence = Math.min(0.95, 0.5 + (similarCycles * 0.1));
+              
+              _storePrediction_({
+                type: 'dip',
+                target: 'team',
+                targetId: 'Team',
+                prediction: {
+                  event: 'dip',
+                  expectedDate: expectedDate.toISOString().split('T')[0],
+                  expectedDepth: dip.depth || 0.3,
+                  expectedDuration: (dip.endSession - dip.startSession) + 1,
+                  confidence: confidence,
+                  reasoning: 'Pattern matches ' + similarCycles + ' previous team cycles. Average dip depth: ' + (dip.depth || 0.3).toFixed(2)
+                },
+                context: {
+                  currentPhase: teamCurrentPhase.phase || 'baseline',
+                  baselineValue: teamBaselines.length > 0 ? teamBaselines[teamBaselines.length - 1].baselineValue : null,
+                  recentTrend: teamSessions.length >= 3 ? teamSessions[teamSessions.length - 1].value - teamSessions[teamSessions.length - 3].value : 0,
+                  totalCycles: teamCycles.length,
+                  similarCycles: similarCycles,
+                  patternId: 'team_baseline_to_dip'
+                }
+              });
+            }
+            
+            // Store recovery prediction if available
+            if (cyclePred.recovery) {
+              const recovery = cyclePred.recovery;
+              const sessionsUntilRecovery = recovery.session - teamSessions.length;
+              const expectedDate = new Date(lastSessionDate);
+              expectedDate.setDate(expectedDate.getDate() + (sessionsUntilRecovery * avgDaysBetweenSessions));
+              
+              const line4Rate = teamCycles.length > 0
+                ? teamCycles.filter(c => c.type === 'Line4').length / teamCycles.length
+                : 0.5;
+              const confidence = Math.min(0.95, 0.5 + (line4Rate * 0.3));
+              
+              _storePrediction_({
+                type: 'recovery',
+                target: 'team',
+                targetId: 'Team',
+                prediction: {
+                  event: 'recovery',
+                  expectedDate: expectedDate.toISOString().split('T')[0],
+                  expectedValue: recovery.value || null,
+                  exceedsBaseline: recovery.exceedsBaseline || false,
+                  confidence: confidence,
+                  reasoning: 'Based on historical recovery patterns. Line 4 rate: ' + (line4Rate * 100).toFixed(0) + '%'
+                },
+                context: {
+                  currentPhase: teamCurrentPhase.phase || 'baseline',
+                  baselineValue: teamBaselines.length > 0 ? teamBaselines[teamBaselines.length - 1].baselineValue : null,
+                  line4Rate: line4Rate,
+                  patternId: 'team_recovery'
+                }
+              });
+            }
+          } catch (e) {
+            Logger.log('Error storing team predictions: ' + String(e));
+            // Don't fail the whole function if prediction storage fails
+          }
+        }
       } catch (e) {
         Logger.log('Error analyzing team spiral: ' + String(e));
       }
@@ -13966,6 +14069,109 @@ function getSpiralAnalysis(playerName) {
     // Step 10: Calculate trajectory for chart projection
     const trajectory = _spiralCalculateTrajectory_(sessions, baselines, dips, recoveries, cycles);
     
+    // Store predictions for validation (if trajectory has cycle prediction)
+    if (trajectory && trajectory.cyclePrediction) {
+      try {
+        const cyclePred = trajectory.cyclePrediction;
+        const lastSession = sessions[sessions.length - 1];
+        const lastSessionDate = lastSession ? new Date(lastSession.date) : new Date();
+        
+        // Calculate average days between sessions for more accurate date prediction
+        let avgDaysBetweenSessions = 7; // Default to weekly
+        if (sessions.length >= 2) {
+          const dateDiffs = [];
+          for (let i = 1; i < Math.min(sessions.length, 10); i++) {
+            const date1 = new Date(sessions[i - 1].date);
+            const date2 = new Date(sessions[i].date);
+            const diff = (date2 - date1) / (1000 * 60 * 60 * 24);
+            if (diff > 0 && diff < 30) dateDiffs.push(diff); // Reasonable range
+          }
+          if (dateDiffs.length > 0) {
+            avgDaysBetweenSessions = dateDiffs.reduce((a, b) => a + b, 0) / dateDiffs.length;
+          }
+        }
+        
+        // Store dip prediction if available
+        if (cyclePred.dip) {
+          const dip = cyclePred.dip;
+          // Calculate expected date based on actual session frequency
+          const sessionsUntilDip = dip.startSession - sessions.length;
+          const expectedDate = new Date(lastSessionDate);
+          expectedDate.setDate(expectedDate.getDate() + (sessionsUntilDip * avgDaysBetweenSessions));
+          
+          // Calculate confidence based on pattern matches and historical data
+          const similarCycles = cycles.filter(c => c.type === 'Line2').length;
+          const hasHistoricalData = dips.length > 0 && recoveries.length > 0;
+          const confidence = hasHistoricalData 
+            ? Math.min(0.95, 0.5 + (similarCycles * 0.1) + (dips.length > 2 ? 0.15 : 0))
+            : Math.min(0.75, 0.4 + (similarCycles * 0.1));
+          
+          _storePrediction_({
+            type: 'dip',
+            target: 'player',
+            targetId: playerName,
+            prediction: {
+              event: 'dip',
+              expectedDate: expectedDate.toISOString().split('T')[0],
+              expectedDepth: dip.depth || 0.3,
+              expectedDuration: (dip.endSession - dip.startSession) + 1,
+              confidence: confidence,
+              reasoning: 'Pattern matches ' + similarCycles + ' previous cycles. Historical dip depth: ' + (dip.depth || 0.3).toFixed(2)
+            },
+            context: {
+              currentPhase: currentPhase.phase || 'baseline',
+              baselineValue: baselines.length > 0 ? baselines[baselines.length - 1].baselineValue : null,
+              recentTrend: sessions.length >= 3 ? sessions[sessions.length - 1].value - sessions[sessions.length - 3].value : 0,
+              totalCycles: cycles.length,
+              totalDips: dips.length,
+              similarCycles: similarCycles,
+              patternId: 'player_baseline_to_dip'
+            }
+          });
+        }
+        
+        // Store recovery prediction if available
+        if (cyclePred.recovery) {
+          const recovery = cyclePred.recovery;
+          const sessionsUntilRecovery = recovery.session - sessions.length;
+          const expectedDate = new Date(lastSessionDate);
+          expectedDate.setDate(expectedDate.getDate() + (sessionsUntilRecovery * avgDaysBetweenSessions));
+          
+          const line4Rate = cycles.length > 0
+            ? cycles.filter(c => c.type === 'Line4').length / cycles.length
+            : 0.5;
+          const hasRecoveryHistory = recoveries.length > 0;
+          const confidence = hasRecoveryHistory
+            ? Math.min(0.95, 0.5 + (line4Rate * 0.3) + (recoveries.length > 2 ? 0.15 : 0))
+            : Math.min(0.75, 0.4 + (line4Rate * 0.3));
+          
+          _storePrediction_({
+            type: 'recovery',
+            target: 'player',
+            targetId: playerName,
+            prediction: {
+              event: 'recovery',
+              expectedDate: expectedDate.toISOString().split('T')[0],
+              expectedValue: recovery.value || null,
+              exceedsBaseline: recovery.exceedsBaseline || false,
+              confidence: confidence,
+              reasoning: 'Based on historical recovery patterns. Line 4 rate: ' + (line4Rate * 100).toFixed(0) + '%. Total recoveries: ' + recoveries.length
+            },
+            context: {
+              currentPhase: currentPhase.phase || 'baseline',
+              baselineValue: baselines.length > 0 ? baselines[baselines.length - 1].baselineValue : null,
+              line4Rate: line4Rate,
+              totalRecoveries: recoveries.length,
+              patternId: 'player_recovery'
+            }
+          });
+        }
+      } catch (e) {
+        Logger.log('Error storing player predictions for ' + playerName + ': ' + String(e));
+        // Don't fail the whole function if prediction storage fails
+      }
+    }
+    
     // Format output
     return {
       ok: true,
@@ -14245,5 +14451,531 @@ function getCompetitionLogosForPredictions() {
   } catch (e) {
     Logger.log('getCompetitionLogosForPredictions error: ' + String(e));
     return { ok: false, error: String(e), dateToLogo: {} };
+  }
+}
+
+/*** ====== PREDICTION VALIDATION SYSTEM ====== ***/
+
+/**
+ * Store a prediction for future validation
+ * Uses Script Properties (no sheets needed)
+ */
+function _storePrediction_(predictionData) {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const key = 'predictions_active';
+    
+    // Get existing predictions
+    const existingJson = props.getProperty(key) || '[]';
+    let predictions = [];
+    try {
+      predictions = JSON.parse(existingJson);
+    } catch (e) {
+      predictions = [];
+    }
+    
+    // Add new prediction with unique ID
+    const prediction = {
+      id: Utilities.getUuid(),
+      timestamp: new Date().toISOString(),
+      ...predictionData
+    };
+    
+    predictions.push(prediction);
+    
+    // Keep only last 100 active predictions (prevent storage bloat)
+    const trimmed = predictions.slice(-100);
+    props.setProperty(key, JSON.stringify(trimmed));
+    
+    return { ok: true, id: prediction.id };
+  } catch (e) {
+    Logger.log('Error storing prediction: ' + String(e));
+    return { ok: false, error: String(e) };
+  }
+}
+
+/**
+ * Get actual outcome for a prediction
+ */
+function _getActualOutcome_(prediction, targetId, targetType) {
+  try {
+    if (prediction.type === 'dip') {
+      // Get current analysis
+      let analysis = null;
+      if (targetType === 'team') {
+        const teamData = getAllSpiralAnalysis();
+        if (teamData && teamData.ok && teamData.teamAnalysis) {
+          analysis = { ok: true, dips: teamData.teamAnalysis.dips || [], sessions: teamData.teamAnalysis.sessions || [] };
+        }
+      } else {
+        analysis = getSpiralAnalysis(targetId);
+      }
+      
+      if (!analysis || !analysis.ok) return null;
+      
+      const dips = analysis.dips || [];
+      const sessions = analysis.sessions || [];
+      
+      // Find dip that occurred around predicted time
+      const predictedDate = new Date(prediction.prediction.expectedDate);
+      const toleranceDays = 3; // ±3 days tolerance
+      
+      for (let i = 0; i < dips.length; i++) {
+        const dip = dips[i];
+        
+        if (sessions.length > 0 && dip.startIndex < sessions.length) {
+          const sessionDate = sessions[dip.startIndex];
+          const dipStartDate = sessionDate.date ? new Date(sessionDate.date) : new Date(sessionDate);
+          const daysDiff = Math.abs((dipStartDate - predictedDate) / (1000 * 60 * 60 * 24));
+          
+          if (daysDiff <= toleranceDays) {
+            return {
+              occurred: true,
+              date: dipStartDate.toISOString().split('T')[0],
+              dipDepth: dip.depth || 0,
+              dipDuration: (dip.endIndex - dip.startIndex) + 1,
+              dipType: dip.type || 'unknown',
+              actualValue: dip.lowestValue || null
+            };
+          }
+        }
+      }
+      
+      // No dip found - prediction was wrong
+      return {
+        occurred: false,
+        date: null,
+        dipDepth: null,
+        dipDuration: null,
+        dipType: null,
+        actualValue: null
+      };
+    }
+    
+    if (prediction.type === 'recovery') {
+      let analysis = null;
+      if (targetType === 'team') {
+        const teamData = getAllSpiralAnalysis();
+        if (teamData && teamData.ok && teamData.teamAnalysis) {
+          analysis = { ok: true, recoveries: teamData.teamAnalysis.recoveries || [], sessions: teamData.teamAnalysis.sessions || [] };
+        }
+      } else {
+        analysis = getSpiralAnalysis(targetId);
+      }
+      
+      if (!analysis || !analysis.ok) return null;
+      
+      const recoveries = analysis.recoveries || [];
+      const sessions = analysis.sessions || [];
+      
+      const predictedDate = new Date(prediction.prediction.expectedDate);
+      const toleranceDays = 3;
+      
+      for (let i = 0; i < recoveries.length; i++) {
+        const recovery = recoveries[i];
+        
+        if (sessions.length > 0 && recovery.recoveryIndex < sessions.length) {
+          const sessionDate = sessions[recovery.recoveryIndex];
+          const recoveryDate = sessionDate.date ? new Date(sessionDate.date) : new Date(sessionDate);
+          const daysDiff = Math.abs((recoveryDate - predictedDate) / (1000 * 60 * 60 * 24));
+          
+          if (daysDiff <= toleranceDays) {
+            return {
+              occurred: true,
+              date: recoveryDate.toISOString().split('T')[0],
+              recoveryValue: recovery.recoveryValue || null,
+              exceedsBaseline: recovery.exceedsBaseline || false,
+              actualValue: recovery.recoveryValue || null
+            };
+          }
+        }
+      }
+      
+      return {
+        occurred: false,
+        date: null,
+        recoveryValue: null,
+        exceedsBaseline: false,
+        actualValue: null
+      };
+    }
+    
+    return null;
+  } catch (e) {
+    Logger.log('Error getting actual outcome: ' + String(e));
+    return null;
+  }
+}
+
+/**
+ * Calculate accuracy score for a prediction (0-1)
+ */
+function _calculateAccuracy_(prediction, outcome) {
+  if (!outcome) return 0;
+  
+  try {
+    if (prediction.type === 'dip') {
+      if (!outcome.occurred) {
+        // Prediction said dip would occur, but it didn't
+        return 0;
+      }
+      
+      // Calculate accuracy components
+      const dateAccuracy = outcome.date ? 1 : 0; // If we found a date, it's accurate
+      const depthAccuracy = outcome.dipDepth != null && prediction.prediction.expectedDepth != null
+        ? 1 - Math.min(1, Math.abs(outcome.dipDepth - prediction.prediction.expectedDepth) / 0.5)
+        : 0.5;
+      const durationAccuracy = outcome.dipDuration != null && prediction.prediction.expectedDuration != null
+        ? 1 - Math.min(1, Math.abs(outcome.dipDuration - prediction.prediction.expectedDuration) / 4)
+        : 0.5;
+      
+      // Weighted average (date is most important)
+      const accuracy = (dateAccuracy * 0.5) + (depthAccuracy * 0.3) + (durationAccuracy * 0.2);
+      return Math.max(0, Math.min(1, accuracy));
+    }
+    
+    if (prediction.type === 'recovery') {
+      if (!outcome.occurred) {
+        return 0;
+      }
+      
+      const dateAccuracy = outcome.date ? 1 : 0;
+      const valueAccuracy = outcome.recoveryValue != null && prediction.prediction.expectedValue != null
+        ? 1 - Math.min(1, Math.abs(outcome.recoveryValue - prediction.prediction.expectedValue) / 0.5)
+        : 0.5;
+      const exceedanceAccuracy = outcome.exceedsBaseline === prediction.prediction.exceedsBaseline ? 1 : 0;
+      
+      const accuracy = (dateAccuracy * 0.4) + (valueAccuracy * 0.4) + (exceedanceAccuracy * 0.2);
+      return Math.max(0, Math.min(1, accuracy));
+    }
+    
+    return 0.5; // Default for unknown types
+  } catch (e) {
+    Logger.log('Error calculating accuracy: ' + String(e));
+    return 0;
+  }
+}
+
+/**
+ * Learn from a validated prediction
+ */
+function _learnFromPrediction_(prediction, outcome, accuracy) {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    
+    // Store pattern effectiveness
+    const patternKey = prediction.context && prediction.context.patternId 
+      ? prediction.context.patternId 
+      : prediction.type + '_default';
+    
+    const patternsJson = props.getProperty('pattern_effectiveness') || '{}';
+    let patterns = {};
+    try {
+      patterns = JSON.parse(patternsJson);
+    } catch (e) {
+      patterns = {};
+    }
+    
+    if (!patterns[patternKey]) {
+      patterns[patternKey] = {
+        total: 0,
+        accurate: 0,
+        totalAccuracy: 0,
+        averageAccuracy: 0
+      };
+    }
+    
+    patterns[patternKey].total++;
+    if (accuracy > 0.7) patterns[patternKey].accurate++;
+    patterns[patternKey].totalAccuracy += accuracy;
+    patterns[patternKey].averageAccuracy = patterns[patternKey].totalAccuracy / patterns[patternKey].total;
+    
+    // Keep only top 50 patterns (prevent bloat)
+    const patternEntries = Object.entries(patterns);
+    if (patternEntries.length > 50) {
+      patternEntries.sort((a, b) => b[1].total - a[1].total);
+      patterns = Object.fromEntries(patternEntries.slice(0, 50));
+    }
+    
+    props.setProperty('pattern_effectiveness', JSON.stringify(patterns));
+    
+    // Update confidence calibration
+    const confidence = prediction.prediction && prediction.prediction.confidence 
+      ? prediction.prediction.confidence 
+      : 0.5;
+    
+    const calJson = props.getProperty('confidence_calibration') || '[]';
+    let calibration = [];
+    try {
+      calibration = JSON.parse(calJson);
+    } catch (e) {
+      calibration = [];
+    }
+    
+    calibration.push({
+      predictedConfidence: confidence,
+      actualAccuracy: accuracy,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Keep last 200 calibration points
+    const trimmed = calibration.slice(-200);
+    props.setProperty('confidence_calibration', JSON.stringify(trimmed));
+    
+  } catch (e) {
+    Logger.log('Error learning from prediction: ' + String(e));
+  }
+}
+
+/**
+ * Validate pending predictions
+ * Call this after each session or on a schedule
+ */
+function validatePredictions() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const activeJson = props.getProperty('predictions_active') || '[]';
+    let predictions = [];
+    try {
+      predictions = JSON.parse(activeJson);
+    } catch (e) {
+      predictions = [];
+    }
+    
+    if (predictions.length === 0) {
+      return { ok: true, validated: 0, pending: 0 };
+    }
+    
+    const validated = [];
+    const stillPending = [];
+    const currentDate = new Date();
+    
+    predictions.forEach(pred => {
+      try {
+        // Check if validation period has passed
+        const predictionDate = new Date(pred.timestamp);
+        const daysSince = (currentDate - predictionDate) / (1000 * 60 * 60 * 24);
+        
+        // Validation window: 14 days for dips, 10 days for recoveries, 7 days for others
+        const validationWindow = pred.type === 'dip' ? 14 : (pred.type === 'recovery' ? 10 : 7);
+        
+        if (daysSince > validationWindow) {
+          // Time to validate
+          const targetId = pred.targetId || '';
+          const targetType = pred.target || 'player';
+          
+          const outcome = _getActualOutcome_(pred, targetId, targetType);
+          const accuracy = _calculateAccuracy_(pred, outcome);
+          
+          const validatedPred = {
+            ...pred,
+            validation: {
+              status: 'validated',
+              outcomeDate: outcome ? outcome.date : null,
+              actualOutcome: outcome,
+              accuracy: accuracy,
+              validatedAt: new Date().toISOString()
+            }
+          };
+          
+          validated.push(validatedPred);
+          
+          // Learn from result
+          if (outcome) {
+            _learnFromPrediction_(pred, outcome, accuracy);
+          }
+        } else {
+          stillPending.push(pred);
+        }
+      } catch (e) {
+        Logger.log('Error validating prediction ' + pred.id + ': ' + String(e));
+        // Keep as pending if validation fails
+        stillPending.push(pred);
+      }
+    });
+    
+    // Update active predictions (remove validated ones)
+    props.setProperty('predictions_active', JSON.stringify(stillPending));
+    
+    // Store validated predictions in history
+    if (validated.length > 0) {
+      const historyJson = props.getProperty('predictions_history') || '[]';
+      let history = [];
+      try {
+        history = JSON.parse(historyJson);
+      } catch (e) {
+        history = [];
+      }
+      
+      history.push(...validated);
+      
+      // Keep last 500 validated predictions
+      const trimmed = history.slice(-500);
+      props.setProperty('predictions_history', JSON.stringify(trimmed));
+    }
+    
+    return { 
+      ok: true, 
+      validated: validated.length, 
+      pending: stillPending.length,
+      total: predictions.length
+    };
+  } catch (e) {
+    Logger.log('Error validating predictions: ' + String(e));
+    return { ok: false, error: String(e) };
+  }
+}
+
+/**
+ * Get active predictions for UI
+ */
+function getActivePredictions() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const json = props.getProperty('predictions_active') || '[]';
+    let predictions = [];
+    try {
+      predictions = JSON.parse(json);
+    } catch (e) {
+      predictions = [];
+    }
+    
+    // Sort by timestamp (newest first)
+    predictions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    return { ok: true, predictions: predictions };
+  } catch (e) {
+    Logger.log('Error getting active predictions: ' + String(e));
+    return { ok: false, error: String(e), predictions: [] };
+  }
+}
+
+/**
+ * Get prediction accuracy statistics
+ */
+function getPredictionAccuracy() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const historyJson = props.getProperty('predictions_history') || '[]';
+    let history = [];
+    try {
+      history = JSON.parse(historyJson);
+    } catch (e) {
+      history = [];
+    }
+    
+    if (history.length === 0) {
+      return { 
+        ok: true, 
+        overallAccuracy: null, 
+        byType: {}, 
+        total: 0,
+        confidenceCalibration: null
+      };
+    }
+    
+    // Calculate overall accuracy
+    const validAccuracies = history
+      .map(p => p.validation && p.validation.accuracy)
+      .filter(a => a != null && !isNaN(a));
+    
+    const overallAccuracy = validAccuracies.length > 0
+      ? validAccuracies.reduce((sum, a) => sum + a, 0) / validAccuracies.length
+      : null;
+    
+    // Calculate by type
+    const byType = {};
+    history.forEach(p => {
+      if (!p.type) return;
+      if (!byType[p.type]) {
+        byType[p.type] = { total: 0, accuracy: 0, accurate: 0 };
+      }
+      byType[p.type].total++;
+      if (p.validation && p.validation.accuracy != null) {
+        byType[p.type].accuracy += p.validation.accuracy;
+        if (p.validation.accuracy > 0.7) {
+          byType[p.type].accurate++;
+        }
+      }
+    });
+    
+    // Calculate averages
+    Object.keys(byType).forEach(type => {
+      if (byType[type].total > 0) {
+        byType[type].average = byType[type].accuracy / byType[type].total;
+        byType[type].accuracyRate = byType[type].accurate / byType[type].total;
+      }
+    });
+    
+    // Get confidence calibration
+    const calJson = props.getProperty('confidence_calibration') || '[]';
+    let calibration = [];
+    try {
+      calibration = JSON.parse(calJson);
+    } catch (e) {
+      calibration = [];
+    }
+    
+    let confidenceCalibration = null;
+    if (calibration.length > 0) {
+      // Group by confidence buckets
+      const buckets = {};
+      calibration.forEach(c => {
+        const bucket = Math.floor(c.predictedConfidence * 10) / 10; // 0.0, 0.1, 0.2, etc.
+        if (!buckets[bucket]) {
+          buckets[bucket] = { predicted: [], actual: [] };
+        }
+        buckets[bucket].predicted.push(c.predictedConfidence);
+        buckets[bucket].actual.push(c.actualAccuracy);
+      });
+      
+      // Calculate average for each bucket
+      const calibrationData = Object.entries(buckets).map(([bucket, data]) => ({
+        confidenceLevel: parseFloat(bucket),
+        predictedAvg: data.predicted.reduce((a, b) => a + b, 0) / data.predicted.length,
+        actualAvg: data.actual.reduce((a, b) => a + b, 0) / data.actual.length,
+        sampleSize: data.predicted.length
+      }));
+      
+      confidenceCalibration = calibrationData;
+    }
+    
+    return {
+      ok: true,
+      overallAccuracy: overallAccuracy,
+      byType: byType,
+      total: history.length,
+      confidenceCalibration: confidenceCalibration
+    };
+  } catch (e) {
+    Logger.log('Error getting prediction accuracy: ' + String(e));
+    return { ok: false, error: String(e) };
+  }
+}
+
+/**
+ * Get pattern effectiveness data
+ */
+function getPatternEffectiveness() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const patternsJson = props.getProperty('pattern_effectiveness') || '{}';
+    let patterns = {};
+    try {
+      patterns = JSON.parse(patternsJson);
+    } catch (e) {
+      patterns = {};
+    }
+    
+    // Sort by total predictions (most used first)
+    const sorted = Object.entries(patterns)
+      .map(([key, data]) => ({ pattern: key, ...data }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 20); // Top 20 patterns
+    
+    return { ok: true, patterns: sorted };
+  } catch (e) {
+    Logger.log('Error getting pattern effectiveness: ' + String(e));
+    return { ok: false, error: String(e), patterns: [] };
   }
 }
